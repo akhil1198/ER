@@ -1,33 +1,33 @@
-# main.py - FastAPI Backend MVP with SSL Fix
-from fastapi import FastAPI, File, UploadFile, HTTPException
+# main.py - FastAPI Backend with Chat Interface
+from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import openai
 import base64
 import json
 import os
-import ssl
-import certifi
-import httpx
 from datetime import datetime
 import uuid
+import asyncio
 from dotenv import load_dotenv
-
 load_dotenv()
 
-app = FastAPI(title="Expense Reporting MVP", version="1.0.0")
+app = FastAPI(title="Expense Chat API", version="2.0.0")
 
 # CORS middleware for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Both Vite and CRA
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Response model for extracted expense data
+# Set your OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Data models
 class ExpenseData(BaseModel):
     expense_type: Optional[str] = None
     transaction_date: Optional[str] = None
@@ -44,107 +44,68 @@ class ExpenseData(BaseModel):
     business_unit: Optional[str] = None
     comment: Optional[str] = None
 
-class ExpenseResponse(BaseModel):
-    success: bool
+class ChatMessage(BaseModel):
+    id: str
+    type: str  # 'user', 'assistant', 'expense_data', 'image'
+    content: str
+    timestamp: datetime
     expense_data: Optional[ExpenseData] = None
-    error: Optional[str] = None
-    processing_time: Optional[float] = None
+    image_url: Optional[str] = None
 
-# ChatGPT prompt for expense data extraction
+class ChatSession(BaseModel):
+    session_id: str
+    messages: List[ChatMessage] = []
+    current_expense: Optional[ExpenseData] = None
+    created_at: datetime
+
+# In-memory storage (use database in production)
+chat_sessions: Dict[str, ChatSession] = {}
+active_connections: Dict[str, WebSocket] = {}
+
+# ChatGPT prompts
 EXPENSE_EXTRACTION_PROMPT = """
-You are an expert at extracting expense information from receipt images. 
-Analyze the receipt image and extract the following information in JSON format:
+You are an expense reporting assistant. Analyze this receipt image and extract expense information.
 
-Required fields:
-- expense_type: Categorize as one of: "Meals", "Travel", "Accommodation", "Transportation", "Office Supplies", "Software", "Other"
+Extract the following information in JSON format:
+- expense_type: Categorize as "Meals", "Travel", "Accommodation", "Transportation", "Office Supplies", "Software", or "Other"
 - transaction_date: Date in YYYY-MM-DD format
-- business_purpose: Infer likely business purpose based on vendor/items
-- travel_type: If travel-related, specify "Domestic" or "International", otherwise null
-- meal_type: If meal, specify "Breakfast", "Lunch", "Dinner", "Snack", otherwise null
+- business_purpose: Infer likely business purpose
+- travel_type: "Domestic", "International", or null
+- meal_type: "Breakfast", "Lunch", "Dinner", "Snack", or null
 - vendor: Business/vendor name
 - city: City where transaction occurred
 - country: Country where transaction occurred
 - payment_type: "Credit Card", "Cash", "Bank Transfer", or "Other"
 - amount: Total amount as number
 - currency: Currency code (USD, EUR, etc.)
-- allocate_to_another_business_unit: false (default)
-- business_unit: null (default)
-- comment: Any additional notes or itemized details
+- allocate_to_another_business_unit: false
+- business_unit: null
+- comment: Additional notes
 
-Return ONLY valid JSON format with these exact field names. If information is not available, use null for strings, 0 for amounts, and false for booleans.
-
-Example response:
-{
-  "expense_type": "Meals",
-  "transaction_date": "2024-01-15",
-  "business_purpose": "Client lunch meeting",
-  "travel_type": null,
-  "meal_type": "Lunch",
-  "vendor": "Restaurant ABC",
-  "city": "New York",
-  "country": "USA",
-  "payment_type": "Credit Card",
-  "amount": 45.67,
-  "currency": "USD",
-  "allocate_to_another_business_unit": false,
-  "business_unit": null,
-  "comment": "Lunch with client to discuss project requirements"
-}
+Return ONLY valid JSON. If information is unclear, use null.
 """
 
-# Create SSL context for HTTPS requests
-def create_ssl_context():
-    """Create SSL context with proper certificate validation"""
-    try:
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-        return ssl_context
-    except Exception as e:
-        print(f"SSL context creation failed: {e}")
-        # Fallback to default context
-        return ssl.create_default_context()
+CHAT_CORRECTION_PROMPT = """
+You are an expense reporting assistant helping users correct expense data. 
 
-async def make_openai_request_with_ssl(api_key: str, payload: dict) -> dict:
-    """Make OpenAI API request with proper SSL handling"""
-    try:
-        ssl_context = create_ssl_context()
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        async with httpx.AsyncClient(verify=ssl_context, timeout=60.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"OpenAI API error: {response.text}"
-                )
-                
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request failed: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+Current expense data:
+{current_data}
+
+User correction request: "{user_message}"
+
+Please update the expense data based on the user's correction and return the updated JSON with the same structure. Only modify fields that the user specifically mentions. Keep all other fields unchanged.
+
+Return ONLY the updated JSON with all fields included.
+"""
 
 async def extract_expense_data_from_image(image_base64: str) -> Dict[str, Any]:
-    """
-    Send image to ChatGPT for expense data extraction using direct HTTP request
-    """
+    """Extract expense data from receipt image using ChatGPT"""
     try:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
-        payload = {
-            "model": "gpt-4o",
-            "messages": [
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
                 {
                     "role": "user",
                     "content": [
@@ -161,166 +122,268 @@ async def extract_expense_data_from_image(image_base64: str) -> Dict[str, Any]:
                     ]
                 }
             ],
-            "max_tokens": 1000,
-            "temperature": 0.1
-        }
+            max_tokens=1000,
+            temperature=0.1
+        )
         
-        # Make request with SSL handling
-        response_data = await make_openai_request_with_ssl(api_key, payload)
+        content = response.choices[0].message.content
         
-        # Extract the JSON response
-        content = response_data["choices"][0]["message"]["content"]
-        
-        # Try to parse the JSON response
-        try:
-            # Clean the response in case there's extra text
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            if json_start != -1 and json_end != -1:
-                json_str = content[json_start:json_end]
-                return json.loads(json_str)
-            else:
-                raise ValueError("No valid JSON found in response")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse JSON response: {e}")
+        # Parse JSON response
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start != -1 and json_end != -1:
+            json_str = content[json_start:json_end]
+            return json.loads(json_str)
+        else:
+            raise ValueError("No valid JSON found in response")
             
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChatGPT processing failed: {str(e)}")
 
-def validate_image_file(file: UploadFile) -> bool:
-    """
-    Validate uploaded image file
-    """
-    # Check file size (max 4MB for OpenAI)
-    max_size = 4 * 1024 * 1024  # 4MB
-    if file.size and file.size > max_size:
-        return False
-    
-    # Check file type
-    allowed_types = ["image/jpeg", "image/jpg", "image/png"]
-    if file.content_type not in allowed_types:
-        return False
-    
-    return True
+async def correct_expense_data(current_data: ExpenseData, user_message: str) -> Dict[str, Any]:
+    """Use ChatGPT to correct expense data based on user feedback"""
+    try:
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        current_data_json = current_data.model_dump()
+        prompt = CHAT_CORRECTION_PROMPT.format(
+            current_data=json.dumps(current_data_json, indent=2),
+            user_message=user_message
+        )
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=1000,
+            temperature=0.1
+        )
+        
+        content = response.choices[0].message.content
+        
+        # Parse JSON response
+        json_start = content.find('{')
+        json_end = content.rfind('}') + 1
+        if json_start != -1 and json_end != -1:
+            json_str = content[json_start:json_end]
+            return json.loads(json_str)
+        else:
+            raise ValueError("No valid JSON found in response")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Correction failed: {str(e)}")
 
-@app.post("/api/process-receipt", response_model=ExpenseResponse)
-async def process_receipt(file: UploadFile = File(...)):
-    """
-    Main API endpoint: Upload receipt -> ChatGPT processing -> Return expense data
-    """
-    start_time = datetime.now()
+def create_chat_session() -> ChatSession:
+    """Create a new chat session"""
+    session_id = str(uuid.uuid4())
+    session = ChatSession(
+        session_id=session_id,
+        created_at=datetime.now()
+    )
+    
+    # Add welcome message
+    welcome_message = ChatMessage(
+        id=str(uuid.uuid4()),
+        type="assistant",
+        content="Hi! I'm your expense reporting assistant. Drop a receipt image here and I'll extract the expense information for you. You can then review and make any corrections needed!",
+        timestamp=datetime.now()
+    )
+    session.messages.append(welcome_message)
+    
+    chat_sessions[session_id] = session
+    return session
+
+async def send_message_to_client(session_id: str, message: ChatMessage):
+    """Send message to connected WebSocket client"""
+    if session_id in active_connections:
+        try:
+            await active_connections[session_id].send_text(message.model_dump_json())
+        except:
+            # Remove disconnected client
+            del active_connections[session_id]
+
+# REST API Endpoints
+@app.post("/api/chat/create-session")
+async def create_session():
+    """Create a new chat session"""
+    session = create_chat_session()
+    return {"session_id": session.session_id}
+
+@app.get("/api/chat/{session_id}/messages")
+async def get_chat_messages(session_id: str):
+    """Get all messages for a chat session"""
+    if session_id not in chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = chat_sessions[session_id]
+    return {"messages": session.messages}
+
+@app.post("/api/chat/{session_id}/upload-receipt")
+async def upload_receipt(session_id: str, file: UploadFile = File(...)):
+    """Upload receipt and extract expense data"""
+    if session_id not in chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = chat_sessions[session_id]
+    
+    # Validate file
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Invalid file type")
     
     try:
-        # Validate the uploaded file
-        if not validate_image_file(file):
-            raise HTTPException(
-                status_code=400, 
-                detail="Invalid file. Please upload an image file (JPEG, PNG) under 4MB."
-            )
-        
-        # Read and encode the image
+        # Read and encode image
         image_bytes = await file.read()
         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        image_url = f"data:{file.content_type};base64,{image_base64}"
         
-        # Process with ChatGPT
+        # Add user message for image upload
+        user_message = ChatMessage(
+            id=str(uuid.uuid4()),
+            type="image",
+            content=f"Uploaded receipt: {file.filename}",
+            timestamp=datetime.now(),
+            image_url=image_url
+        )
+        session.messages.append(user_message)
+        await send_message_to_client(session_id, user_message)
+        
+        # Add processing message
+        processing_message = ChatMessage(
+            id=str(uuid.uuid4()),
+            type="assistant",
+            content="🔍 Analyzing your receipt... This may take a few seconds.",
+            timestamp=datetime.now()
+        )
+        session.messages.append(processing_message)
+        await send_message_to_client(session_id, processing_message)
+        
+        # Extract expense data
         extracted_data = await extract_expense_data_from_image(image_base64)
-        
-        # Create expense data object
         expense_data = ExpenseData(**extracted_data)
+        session.current_expense = expense_data
         
-        # Calculate processing time
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        return ExpenseResponse(
-            success=True,
-            expense_data=expense_data,
-            processing_time=processing_time
+        # Add expense data message
+        expense_message = ChatMessage(
+            id=str(uuid.uuid4()),
+            type="expense_data",
+            content="Here's what I extracted from your receipt. Please review and let me know if you'd like to make any changes:",
+            timestamp=datetime.now(),
+            expense_data=expense_data
         )
+        session.messages.append(expense_message)
+        await send_message_to_client(session_id, expense_message)
         
-    except HTTPException:
-        raise
+        return {"success": True, "message": "Receipt processed successfully"}
+        
     except Exception as e:
-        processing_time = (datetime.now() - start_time).total_seconds()
-        return ExpenseResponse(
-            success=False,
-            error=str(e),
-            processing_time=processing_time
+        error_message = ChatMessage(
+            id=str(uuid.uuid4()),
+            type="assistant",
+            content=f"❌ Sorry, I had trouble processing your receipt: {str(e)}. Please try uploading again.",
+            timestamp=datetime.now()
         )
+        session.messages.append(error_message)
+        await send_message_to_client(session_id, error_message)
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/test-openai")
-async def test_openai():
-    """
-    Test OpenAI connection with SSL fix
-    """
+@app.post("/api/chat/{session_id}/send-message")
+async def send_message(session_id: str, message_data: dict):
+    """Send a text message and process corrections"""
+    if session_id not in chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = chat_sessions[session_id]
+    user_text = message_data.get("content", "")
+    
+    # Add user message
+    user_message = ChatMessage(
+        id=str(uuid.uuid4()),
+        type="user",
+        content=user_text,
+        timestamp=datetime.now()
+    )
+    session.messages.append(user_message)
+    await send_message_to_client(session_id, user_message)
+    
     try:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return {"success": False, "error": "No API key found"}
-        
-        payload = {
-            "model": "gpt-3.5-turbo",
-            "messages": [{"role": "user", "content": "Hello, this is a test"}],
-            "max_tokens": 20
-        }
-        
-        response_data = await make_openai_request_with_ssl(api_key, payload)
-        
-        return {
-            "success": True,
-            "response": response_data["choices"][0]["message"]["content"],
-            "model_used": response_data["model"]
-        }
-        
+        # Check if user wants to correct current expense data
+        if session.current_expense and any(keyword in user_text.lower() for keyword in 
+                                         ['change', 'correct', 'update', 'fix', 'wrong', 'should be']):
+            
+            # Process correction with ChatGPT
+            corrected_data = await correct_expense_data(session.current_expense, user_text)
+            session.current_expense = ExpenseData(**corrected_data)
+            
+            # Send updated expense data
+            correction_message = ChatMessage(
+                id=str(uuid.uuid4()),
+                type="expense_data",
+                content="✅ I've updated the expense data based on your feedback:",
+                timestamp=datetime.now(),
+                expense_data=session.current_expense
+            )
+            session.messages.append(correction_message)
+            await send_message_to_client(session_id, correction_message)
+            
+        else:
+            # General chat response
+            response_content = "I understand. "
+            if not session.current_expense:
+                response_content += "Please upload a receipt image so I can help you extract expense information."
+            else:
+                response_content += "Is there anything you'd like me to change about the current expense data? Or would you like to create the expense report?"
+            
+            assistant_message = ChatMessage(
+                id=str(uuid.uuid4()),
+                type="assistant",
+                content=response_content,
+                timestamp=datetime.now()
+            )
+            session.messages.append(assistant_message)
+            await send_message_to_client(session_id, assistant_message)
+            
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__
-        }
+        error_message = ChatMessage(
+            id=str(uuid.uuid4()),
+            type="assistant",
+            content=f"❌ Sorry, I had trouble processing your request: {str(e)}",
+            timestamp=datetime.now()
+        )
+        session.messages.append(error_message)
+        await send_message_to_client(session_id, error_message)
 
-@app.get("/api/test-ssl")
-async def test_ssl():
-    """
-    Test basic SSL connectivity
-    """
+# WebSocket endpoint for real-time chat
+@app.websocket("/ws/chat/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    active_connections[session_id] = websocket
+    
     try:
-        ssl_context = create_ssl_context()
-        async with httpx.AsyncClient(verify=ssl_context, timeout=10.0) as client:
-            response = await client.get("https://httpbin.org/get")
-            return {
-                "success": True,
-                "status_code": response.status_code,
-                "ssl_working": True
-            }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "ssl_working": False
-        }
+        while True:
+            # Keep connection alive
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        if session_id in active_connections:
+            del active_connections[session_id]
 
 @app.get("/api/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/")
 async def root():
-    """
-    Root endpoint with API information
-    """
     return {
-        "message": "Expense Reporting MVP API",
-        "version": "1.0.0",
+        "message": "Expense Chat API",
+        "version": "2.0.0",
         "endpoints": {
-            "process_receipt": "POST /api/process-receipt",
-            "test_openai": "GET /api/test-openai", 
-            "test_ssl": "GET /api/test-ssl",
-            "health": "GET /api/health"
+            "create_session": "POST /api/chat/create-session",
+            "upload_receipt": "POST /api/chat/{session_id}/upload-receipt",
+            "send_message": "POST /api/chat/{session_id}/send-message",
+            "websocket": "WS /ws/chat/{session_id}"
         }
     }
 

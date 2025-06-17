@@ -1,4 +1,4 @@
-// App.js - Enhanced React Chat Interface
+// App.js - Clean and Organized React Chat Interface
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
@@ -6,20 +6,35 @@ const API_BASE_URL = "http://localhost:8000";
 const WS_BASE_URL = "ws://localhost:8000";
 
 function App() {
+	// State Management
 	const [sessionId, setSessionId] = useState(null);
 	const [messages, setMessages] = useState([]);
 	const [inputMessage, setInputMessage] = useState("");
 	const [isConnected, setIsConnected] = useState(false);
 	const [isUploading, setIsUploading] = useState(false);
 	const [dragActive, setDragActive] = useState(false);
-	const [chatMode, setChatMode] = useState("normal"); // 'normal' or 'expense'
+	const [chatMode, setChatMode] = useState("normal");
 	const [sapRequirements, setSapRequirements] = useState({});
+	const [isMobile, setIsMobile] = useState(false);
 
+	// Refs
 	const wsRef = useRef(null);
 	const messagesEndRef = useRef(null);
 	const fileInputRef = useRef(null);
+	const textareaRef = useRef(null);
 
-	// Initialize chat session and load SAP requirements
+	// Effects
+	useEffect(() => {
+		const checkIfMobile = () => {
+			setIsMobile(window.innerWidth <= 768);
+		};
+
+		checkIfMobile();
+		window.addEventListener("resize", checkIfMobile);
+
+		return () => window.removeEventListener("resize", checkIfMobile);
+	}, []);
+
 	useEffect(() => {
 		initializeChat();
 		loadSapRequirements();
@@ -30,11 +45,19 @@ function App() {
 		};
 	}, []);
 
-	// Auto-scroll to bottom when new messages arrive
 	useEffect(() => {
 		scrollToBottom();
 	}, [messages]);
 
+	useEffect(() => {
+		if (textareaRef.current) {
+			textareaRef.current.style.height = "auto";
+			textareaRef.current.style.height =
+				Math.min(textareaRef.current.scrollHeight, 120) + "px";
+		}
+	}, [inputMessage]);
+
+	// API Functions
 	const initializeChat = async () => {
 		try {
 			const response = await fetch(
@@ -66,38 +89,6 @@ function App() {
 		}
 	};
 
-	const connectWebSocket = (sessionId) => {
-		wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/chat/${sessionId}`);
-
-		wsRef.current.onopen = () => {
-			setIsConnected(true);
-		};
-
-		wsRef.current.onmessage = (event) => {
-			const message = JSON.parse(event.data);
-			setMessages((prev) => [...prev, message]);
-
-			// Update chat mode based on message type
-			if (
-				message.type === "system" &&
-				message.content.includes("normal chat mode")
-			) {
-				setChatMode("normal");
-			} else if (message.type === "expense_data") {
-				setChatMode("expense");
-			}
-		};
-
-		wsRef.current.onclose = () => {
-			setIsConnected(false);
-		};
-
-		wsRef.current.onerror = (error) => {
-			console.error("WebSocket error:", error);
-			setIsConnected(false);
-		};
-	};
-
 	const loadMessages = async (sessionId) => {
 		try {
 			const response = await fetch(
@@ -109,10 +100,6 @@ function App() {
 		} catch (error) {
 			console.error("Failed to load messages:", error);
 		}
-	};
-
-	const scrollToBottom = () => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	};
 
 	const sendMessage = async () => {
@@ -127,6 +114,22 @@ function App() {
 				body: JSON.stringify({ content: inputMessage }),
 			});
 			setInputMessage("");
+		} catch (error) {
+			console.error("Failed to send message:", error);
+		}
+	};
+
+	const sendMessageDirectly = async (content) => {
+		if (!sessionId) return;
+
+		try {
+			await fetch(`${API_BASE_URL}/api/chat/${sessionId}/send-message`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ content }),
+			});
 		} catch (error) {
 			console.error("Failed to send message:", error);
 		}
@@ -154,6 +157,39 @@ function App() {
 		}
 	};
 
+	// WebSocket Functions
+	const connectWebSocket = (sessionId) => {
+		wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/chat/${sessionId}`);
+
+		wsRef.current.onopen = () => {
+			setIsConnected(true);
+		};
+
+		wsRef.current.onmessage = (event) => {
+			const message = JSON.parse(event.data);
+			setMessages((prev) => [...prev, message]);
+
+			if (
+				message.type === "system" &&
+				message.content.includes("normal chat mode")
+			) {
+				setChatMode("normal");
+			} else if (message.type === "expense_data") {
+				setChatMode("expense");
+			}
+		};
+
+		wsRef.current.onclose = () => {
+			setIsConnected(false);
+		};
+
+		wsRef.current.onerror = (error) => {
+			console.error("WebSocket error:", error);
+			setIsConnected(false);
+		};
+	};
+
+	// Event Handlers
 	const handleDragEvents = (e) => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -190,6 +226,15 @@ function App() {
 		}
 	};
 
+	// Utility Functions
+	const scrollToBottom = () => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	const exitExpenseMode = () => {
+		sendMessageDirectly("stop");
+	};
+
 	const formatFieldName = (fieldName) => {
 		const field = sapRequirements[fieldName];
 		return field
@@ -214,7 +259,6 @@ function App() {
 		const field = sapRequirements[fieldName];
 		if (!field) return true;
 
-		// Check if required field is missing
 		if (
 			field.required &&
 			(value === null || value === undefined || value === "")
@@ -222,7 +266,6 @@ function App() {
 			return false;
 		}
 
-		// Check valid values
 		if (
 			value !== null &&
 			field.valid_values &&
@@ -246,26 +289,21 @@ function App() {
 		return "valid";
 	};
 
-	const exitExpenseMode = () => {
-		sendMessageDirectly("stop");
-	};
-
-	const sendMessageDirectly = async (content) => {
-		if (!sessionId) return;
-
-		try {
-			await fetch(`${API_BASE_URL}/api/chat/${sessionId}/send-message`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ content }),
-			});
-		} catch (error) {
-			console.error("Failed to send message:", error);
+	const getModeInfo = () => {
+		if (chatMode === "expense") {
+			return {
+				title: "🧾 Expense Assistant",
+				description: "Processing receipts for SAP Concur",
+				color: "#1976d2",
+			};
 		}
+		return {
+			title: "💬 Gallagher AI Assistant",
+			color: "#2e7d32",
+		};
 	};
 
+	// Render Functions
 	const renderExpenseField = (fieldName, value) => {
 		const status = getFieldStatus(fieldName, value);
 		const field = sapRequirements[fieldName];
@@ -310,6 +348,7 @@ function App() {
 				}`}
 			>
 				<div className="message-content">
+					{/* Image Message */}
 					{message.type === "image" && message.image_url && (
 						<div className="image-message">
 							<img
@@ -321,6 +360,7 @@ function App() {
 						</div>
 					)}
 
+					{/* Expense Data Message */}
 					{message.type === "expense_data" &&
 						message.expense_data && (
 							<div className="expense-data-message">
@@ -407,6 +447,7 @@ function App() {
 							</div>
 						)}
 
+					{/* System Message */}
 					{message.type === "system" && (
 						<div className="system-message">
 							<span className="system-icon">🔄</span>
@@ -414,6 +455,7 @@ function App() {
 						</div>
 					)}
 
+					{/* Regular Text Message */}
 					{(message.type === "user" ||
 						message.type === "assistant") &&
 						message.type !== "image" &&
@@ -427,49 +469,24 @@ function App() {
 		);
 	};
 
-	const getModeInfo = () => {
-		if (chatMode === "expense") {
-			return {
-				title: "🧾 Expense Processing Mode",
-				description: "Analyzing receipts for SAP Concur",
-				color: "#667eea",
-			};
-		}
-		return {
-			title: "💬 Normal Chat Mode",
-			description: "General AI assistant",
-			color: "#28a745",
-		};
-	};
-
-	if (!sessionId) {
-		return (
-			<div className="App loading-app">
-				<div className="loading-spinner"></div>
-				<p>Initializing chat...</p>
+	const renderSidebar = () => (
+		<div className="chat-sidebar">
+			<div className="sidebar-header">
+				<button
+					className="new-chat-btn"
+					onClick={() => window.location.reload()}
+				>
+					➕ New Chat
+				</button>
 			</div>
-		);
-	}
+		</div>
+	);
 
-	const modeInfo = getModeInfo();
+	const renderHeader = () => {
+		const modeInfo = getModeInfo();
 
-	return (
-		<div
-			className={`App chat-app ${
-				dragActive ? "drag-active" : ""
-			} ${chatMode}`}
-			onDragEnter={handleDragEvents}
-			onDragLeave={handleDragEvents}
-			onDragOver={handleDragEvents}
-			onDrop={handleDrop}
-		>
-			{/* Header */}
-			<header
-				className="chat-header"
-				style={{
-					background: `linear-gradient(135deg, ${modeInfo.color} 0%, #764ba2 100%)`,
-				}}
-			>
+		return (
+			<header className="chat-header">
 				<div className="header-content">
 					<div className="header-left">
 						<h1>{modeInfo.title}</h1>
@@ -499,101 +516,134 @@ function App() {
 					</div>
 				</div>
 			</header>
+		);
+	};
 
-			{/* Chat Messages */}
-			<div className="chat-container">
-				<div className="messages-container">
-					{messages.map(renderMessage)}
-					{isUploading && (
-						<div className="message assistant">
-							<div className="message-content">
-								<div className="typing-indicator">
-									<span></span>
-									<span></span>
-									<span></span>
-								</div>
-								<p>
-									🔍 Processing your receipt for SAP Concur...
-								</p>
+	const renderMessages = () => (
+		<div className="chat-container">
+			<div className="messages-container">
+				{messages.map(renderMessage)}
+				{isUploading && (
+					<div className="message assistant">
+						<div className="message-content">
+							<div className="typing-indicator">
+								<span></span>
+								<span></span>
+								<span></span>
 							</div>
-						</div>
-					)}
-					<div ref={messagesEndRef} />
-				</div>
-
-				{/* Drop Zone Overlay */}
-				{dragActive && (
-					<div className="drop-overlay">
-						<div className="drop-content">
-							<div className="drop-icon">🧾</div>
-							<h3>Drop your receipt here</h3>
-							<p>
-								I'll extract SAP Concur expense data
-								automatically
-							</p>
+							<p>🔍 Processing your receipt for SAP Concur...</p>
 						</div>
 					</div>
 				)}
+				<div ref={messagesEndRef} />
 			</div>
 
-			{/* Input Area */}
-			<div className="chat-input-container">
-				<div className="input-row">
-					<button
-						className="attach-btn"
-						onClick={() => fileInputRef.current?.click()}
-						disabled={isUploading}
-						title="Upload receipt"
-					>
-						📎
-					</button>
-
-					<textarea
-						value={inputMessage}
-						onChange={(e) => setInputMessage(e.target.value)}
-						onKeyPress={handleKeyPress}
-						placeholder={
-							chatMode === "expense"
-								? "Make corrections like 'Change vendor to Starbucks' or type 'stop' to exit expense mode..."
-								: "Type a message... or drag & drop a receipt image to process expenses"
-						}
-						className="message-input"
-						rows="1"
-						disabled={isUploading}
-					/>
-
-					<button
-						onClick={sendMessage}
-						disabled={!inputMessage.trim() || isUploading}
-						className="send-btn"
-						title="Send message"
-					>
-						📤
-					</button>
+			{/* Drop Zone Overlay */}
+			{dragActive && (
+				<div className="drop-overlay">
+					<div className="drop-content">
+						<div className="drop-icon">🧾</div>
+						<h3>Drop your receipt here</h3>
+						<p>
+							I'll extract SAP Concur expense data automatically
+						</p>
+					</div>
 				</div>
+			)}
+		</div>
+	);
 
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept="image/*"
-					onChange={handleFileSelect}
-					style={{ display: "none" }}
+	const renderInputArea = () => (
+		<div className="chat-input-container">
+			<div className="input-row">
+				<button
+					className="attach-btn"
+					onClick={() => fileInputRef.current?.click()}
+					disabled={isUploading}
+					title="Upload receipt"
+				>
+					📎
+				</button>
+
+				<textarea
+					ref={textareaRef}
+					value={inputMessage}
+					onChange={(e) => setInputMessage(e.target.value)}
+					onKeyPress={handleKeyPress}
+					placeholder={
+						chatMode === "expense"
+							? "Make corrections or type 'stop' to exit"
+							: "Ask me anything..."
+					}
+					className="message-input"
+					rows="1"
+					disabled={isUploading}
 				/>
 
-				<div className="input-hint">
-					{chatMode === "expense" ? (
-						<span>
-							💡 Make corrections: "Change the amount to $25.50" •
-							"Set business purpose to client meeting" • Type
-							"stop" to exit
-						</span>
-					) : (
-						<span>
-							💡 Upload receipt images for expense processing, or
-							chat about anything!
-						</span>
-					)}
-				</div>
+				<button
+					onClick={sendMessage}
+					disabled={!inputMessage.trim() || isUploading}
+					className="send-btn"
+					title="Send message"
+				>
+					➤
+				</button>
+			</div>
+
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept="image/*"
+				onChange={handleFileSelect}
+				style={{ display: "none" }}
+			/>
+
+			<div className="input-hint">
+				{chatMode === "expense" ? (
+					<span>
+						💡 Make corrections: "Change the amount to $25.50" •
+						"Set business purpose to client meeting" • Type "stop"
+						to exit
+					</span>
+				) : (
+					<span>
+						💡 Upload receipt images for expense processing, or ask
+						me anything!
+					</span>
+				)}
+			</div>
+		</div>
+	);
+
+	// Loading State
+	if (!sessionId) {
+		return (
+			<div className="App loading-app">
+				<div className="loading-spinner"></div>
+				<p>Initializing Gallagher AI...</p>
+			</div>
+		);
+	}
+
+	// Main Render
+	return (
+		<div
+			className={`App chat-app ${
+				dragActive ? "drag-active" : ""
+			} ${chatMode}`}
+			onDragEnter={handleDragEvents}
+			onDragLeave={handleDragEvents}
+			onDragOver={handleDragEvents}
+			onDrop={handleDrop}
+		>
+			{/* Sidebar for Desktop */}
+			{!isMobile && renderSidebar()}
+
+			{/* Main Chat Area */}
+			<div className="chat-main">
+				{renderHeader()}
+				{renderMessages()}
+				{renderInputArea()}
 			</div>
 		</div>
 	);

@@ -427,7 +427,7 @@ async def upload_receipt(session_id: str, file: UploadFile = File(...)):
         processing_message = ChatMessage(
             id=str(uuid.uuid4()),
             type="assistant",
-            content="🔍 Analyzing your receipt for SAP Concur... This may take a few seconds.",
+            content="Analyzing your receipt for SAP Concur... This may take a few seconds.",
             timestamp=datetime.now()
         )
         session.messages.append(processing_message)

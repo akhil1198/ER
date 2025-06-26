@@ -1,12 +1,16 @@
-// App.js - Clean and Organized React Chat Interface
+// App.js - Clean and Well-Structured Expense Chat Interface
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
+// Constants
 const API_BASE_URL = "http://localhost:8000";
 const WS_BASE_URL = "ws://localhost:8000";
 
+// Main App Component
 function App() {
-	// State Management
+	// ========================================
+	// STATE MANAGEMENT
+	// ========================================
 	const [sessionId, setSessionId] = useState(null);
 	const [messages, setMessages] = useState([]);
 	const [inputMessage, setInputMessage] = useState("");
@@ -17,38 +21,39 @@ function App() {
 	const [sapRequirements, setSapRequirements] = useState({});
 	const [isMobile, setIsMobile] = useState(false);
 
-	// Refs
+	// ========================================
+	// REFS
+	// ========================================
 	const wsRef = useRef(null);
 	const messagesEndRef = useRef(null);
 	const fileInputRef = useRef(null);
 	const textareaRef = useRef(null);
 
-	// Effects
-	useEffect(() => {
-		const checkIfMobile = () => {
-			setIsMobile(window.innerWidth <= 768);
-		};
+	// ========================================
+	// EFFECTS
+	// ========================================
 
+	// Mobile detection
+	useEffect(() => {
+		const checkIfMobile = () => setIsMobile(window.innerWidth <= 768);
 		checkIfMobile();
 		window.addEventListener("resize", checkIfMobile);
-
 		return () => window.removeEventListener("resize", checkIfMobile);
 	}, []);
 
+	// Initialize app
 	useEffect(() => {
 		initializeChat();
 		loadSapRequirements();
-		return () => {
-			if (wsRef.current) {
-				wsRef.current.close();
-			}
-		};
+		return () => wsRef.current?.close();
 	}, []);
 
+	// Auto-scroll messages
 	useEffect(() => {
 		scrollToBottom();
 	}, [messages]);
 
+	// Auto-resize textarea
 	useEffect(() => {
 		if (textareaRef.current) {
 			textareaRef.current.style.height = "auto";
@@ -57,7 +62,10 @@ function App() {
 		}
 	}, [inputMessage]);
 
-	// API Functions
+	// ========================================
+	// API FUNCTIONS
+	// ========================================
+
 	const initializeChat = async () => {
 		try {
 			const response = await fetch(
@@ -67,11 +75,9 @@ function App() {
 				}
 			);
 			const data = await response.json();
-			const newSessionId = data.session_id;
-			setSessionId(newSessionId);
-
-			await loadMessages(newSessionId);
-			connectWebSocket(newSessionId);
+			setSessionId(data.session_id);
+			await loadMessages(data.session_id);
+			connectWebSocket(data.session_id);
 		} catch (error) {
 			console.error("Failed to initialize chat:", error);
 		}
@@ -108,9 +114,7 @@ function App() {
 		try {
 			await fetch(`${API_BASE_URL}/api/chat/${sessionId}/send-message`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content: inputMessage }),
 			});
 			setInputMessage("");
@@ -125,9 +129,7 @@ function App() {
 		try {
 			await fetch(`${API_BASE_URL}/api/chat/${sessionId}/send-message`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content }),
 			});
 		} catch (error) {
@@ -142,7 +144,6 @@ function App() {
 		try {
 			const formData = new FormData();
 			formData.append("file", file);
-
 			await fetch(
 				`${API_BASE_URL}/api/chat/${sessionId}/upload-receipt`,
 				{
@@ -157,18 +158,24 @@ function App() {
 		}
 	};
 
-	// WebSocket Functions
+	// ========================================
+	// WEBSOCKET FUNCTIONS
+	// ========================================
+
 	const connectWebSocket = (sessionId) => {
 		wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/chat/${sessionId}`);
 
-		wsRef.current.onopen = () => {
-			setIsConnected(true);
+		wsRef.current.onopen = () => setIsConnected(true);
+		wsRef.current.onclose = () => setIsConnected(false);
+		wsRef.current.onerror = (error) => {
+			console.error("WebSocket error:", error);
+			setIsConnected(false);
 		};
-
 		wsRef.current.onmessage = (event) => {
 			const message = JSON.parse(event.data);
 			setMessages((prev) => [...prev, message]);
 
+			// Update chat mode based on message type
 			if (
 				message.type === "system" &&
 				message.content.includes("normal chat mode")
@@ -178,27 +185,16 @@ function App() {
 				setChatMode("expense");
 			}
 		};
-
-		wsRef.current.onclose = () => {
-			setIsConnected(false);
-		};
-
-		wsRef.current.onerror = (error) => {
-			console.error("WebSocket error:", error);
-			setIsConnected(false);
-		};
 	};
 
-	// Event Handlers
+	// ========================================
+	// EVENT HANDLERS
+	// ========================================
+
 	const handleDragEvents = (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-
-		if (e.type === "dragenter" || e.type === "dragover") {
-			setDragActive(true);
-		} else if (e.type === "dragleave") {
-			setDragActive(false);
-		}
+		setDragActive(e.type === "dragenter" || e.type === "dragover");
 	};
 
 	const handleDrop = (e) => {
@@ -207,16 +203,14 @@ function App() {
 		setDragActive(false);
 
 		const files = e.dataTransfer.files;
-		if (files && files[0] && files[0].type.startsWith("image/")) {
+		if (files?.[0]?.type.startsWith("image/")) {
 			handleFileUpload(files[0]);
 		}
 	};
 
 	const handleFileSelect = (e) => {
 		const file = e.target.files?.[0];
-		if (file) {
-			handleFileUpload(file);
-		}
+		if (file) handleFileUpload(file);
 	};
 
 	const handleKeyPress = (e) => {
@@ -226,14 +220,15 @@ function App() {
 		}
 	};
 
-	// Utility Functions
+	// ========================================
+	// UTILITY FUNCTIONS
+	// ========================================
+
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	};
 
-	const exitExpenseMode = () => {
-		sendMessageDirectly("stop");
-	};
+	const exitExpenseMode = () => sendMessageDirectly("stop");
 
 	const formatFieldName = (fieldName) => {
 		const field = sapRequirements[fieldName];
@@ -244,16 +239,15 @@ function App() {
 					.replace(/\b\w/g, (l) => l.toUpperCase());
 	};
 
-	const formatFieldValue = (value, fieldName) => {
+	const formatFieldValue = (value) => {
 		if (value === null || value === undefined) return "Not specified";
 		if (typeof value === "boolean") return value ? "Yes" : "No";
 		if (typeof value === "number") return value.toLocaleString();
 		return value;
 	};
 
-	const isFieldRequired = (fieldName) => {
-		return sapRequirements[fieldName]?.required || false;
-	};
+	const isFieldRequired = (fieldName) =>
+		sapRequirements[fieldName]?.required || false;
 
 	const isFieldValid = (fieldName, value) => {
 		const field = sapRequirements[fieldName];
@@ -278,9 +272,7 @@ function App() {
 	};
 
 	const getFieldStatus = (fieldName, value) => {
-		if (!isFieldValid(fieldName, value)) {
-			return "invalid";
-		}
+		if (!isFieldValid(fieldName, value)) return "invalid";
 		if (value === null || value === undefined || value === "") {
 			return isFieldRequired(fieldName)
 				? "missing-required"
@@ -289,187 +281,81 @@ function App() {
 		return "valid";
 	};
 
-	const getModeInfo = () => {
-		if (chatMode === "expense") {
-			return {
-				title: "🧾 Expense Assistant",
-				description: "Processing receipts for SAP Concur",
-				color: "#1976d2",
-			};
-		}
-		return {
-			title: "💬 Gallagher AI Assistant",
-			color: "#2e7d32",
-		};
-	};
+	// Fixed getModeInfo function
+	// const getModeInfo = () => {
+	// 	return chatMode === "expense"
+	// 		? {
+	// 				title: "🧾 Expense Assistant",
+	// 				description: "Processing receipts for SAP Concur",
+	// 		  }
+	// 		: {
+	// 				title: "💬 Gallagher AI Assistant",
+	// 				description: "How can I help you today?",
+	// 		  };
+	// };
 
-	// Render Functions
-	const renderExpenseField = (fieldName, value) => {
-		const status = getFieldStatus(fieldName, value);
-		const field = sapRequirements[fieldName];
+	// ========================================
+	// COMPONENT RENDER FUNCTIONS
+	// ========================================
 
-		return (
-			<div key={fieldName} className={`expense-field ${status}`}>
-				<div className="field-info">
-					<span className="field-label">
-						{formatFieldName(fieldName)}
-						{isFieldRequired(fieldName) && (
-							<span className="required-indicator">*</span>
-						)}
-					</span>
-					<span className={`field-value ${status}`}>
-						{formatFieldValue(value, fieldName)}
-					</span>
-				</div>
-				{status === "invalid" && field && (
-					<div className="field-hint">
-						{field.valid_values
-							? `Must be one of: ${field.valid_values.join(", ")}`
-							: field.description}
+	const NavBar = () => (
+		<nav className="gallagher-navbar">
+			<div className="navbar-left">
+				<a href="#" className="gallagher-logo">
+					{/* Replace this div with your logo image */}
+					<img
+						src="GallagherAI.png"
+						alt="Gallagher AI"
+						className="logo-image"
+					/>
+					{/* Fallback text logo - remove this once you add your image */}
+					<div className="logo-fallback">
+						<div className="logo-icon">G</div>
+						<span className="logo-text">
+							Gallagher <span className="logo-ai">AI</span>
+						</span>
 					</div>
-				)}
-				{status === "missing-required" && (
-					<div className="field-hint error">
-						This field is required for SAP Concur
-					</div>
-				)}
+				</a>
 			</div>
-		);
-	};
 
-	const renderMessage = (message) => {
-		const isUser = message.type === "user" || message.type === "image";
-
-		return (
-			<div
-				key={message.id}
-				className={`message ${isUser ? "user" : "assistant"} ${
-					message.type
-				}`}
-			>
-				<div className="message-content">
-					{/* Image Message */}
-					{message.type === "image" && message.image_url && (
-						<div className="image-message">
-							<img
-								src={message.image_url}
-								alt="Receipt"
-								className="receipt-image"
-							/>
-							<p>{message.content}</p>
-						</div>
-					)}
-
-					{/* Expense Data Message */}
-					{message.type === "expense_data" &&
-						message.expense_data && (
-							<div className="expense-data-message">
-								<p className="expense-intro">
-									{message.content}
-								</p>
-								<div className="expense-data-card">
-									<div className="expense-header">
-										<h4>🧾 SAP Concur Expense Data</h4>
-										<div className="mode-indicator">
-											<span className="mode-badge expense">
-												Expense Mode
-											</span>
-										</div>
-									</div>
-
-									<div className="expense-fields">
-										{Object.entries(
-											message.expense_data
-										).map(([key, value]) =>
-											renderExpenseField(key, value)
-										)}
-									</div>
-
-									<div className="expense-actions">
-										<button
-											className="action-btn secondary"
-											onClick={() =>
-												setInputMessage("Change the ")
-											}
-										>
-											✏️ Make Changes
-										</button>
-										<button className="action-btn primary">
-											📊 Create SAP Concur Report
-										</button>
-										<button
-											className="action-btn tertiary"
-											onClick={exitExpenseMode}
-										>
-											❌ Exit Expense Mode
-										</button>
-									</div>
-
-									<div className="quick-corrections">
-										<p className="quick-corrections-title">
-											💡 Quick corrections:
-										</p>
-										<div className="correction-examples">
-											<span
-												className="correction-example"
-												onClick={() =>
-													setInputMessage(
-														"Change the business purpose to "
-													)
-												}
-											>
-												"Change the business purpose to
-												client meeting"
-											</span>
-											<span
-												className="correction-example"
-												onClick={() =>
-													setInputMessage(
-														"Set the amount to "
-													)
-												}
-											>
-												"Set the amount to $50.00"
-											</span>
-											<span
-												className="correction-example"
-												onClick={() =>
-													setInputMessage(
-														"The vendor should be "
-													)
-												}
-											>
-												"The vendor should be Starbucks"
-											</span>
-										</div>
-									</div>
-								</div>
-							</div>
-						)}
-
-					{/* System Message */}
-					{message.type === "system" && (
-						<div className="system-message">
-							<span className="system-icon">🔄</span>
-							<p>{message.content}</p>
-						</div>
-					)}
-
-					{/* Regular Text Message */}
-					{(message.type === "user" ||
-						message.type === "assistant") &&
-						message.type !== "image" &&
-						message.type !== "system" && <p>{message.content}</p>}
-
-					<div className="message-time">
-						{new Date(message.timestamp).toLocaleTimeString()}
+			<div className="navbar-right">
+				<div className="navbar-center">
+					<button
+						className={`nav-item ${
+							chatMode === "normal" ? "active" : ""
+						}`}
+					>
+						<span className="nav-icon">💬</span>
+						Chat
+					</button>
+					<button className="nav-item">
+						<span className="nav-icon">📄</span>
+						Document Workspaces
+					</button>
+					<button className="nav-item updates-badge">
+						<span className="nav-icon">🔔</span>
+						Updates
+					</button>
+					<div className="more-dropdown">
+						<button className="dropdown-toggle">
+							More <span className="nav-icon">▼</span>
+						</button>
 					</div>
 				</div>
+				<button className="user-profile">
+					<div className="user-avatar">AS</div>
+					<div className="user-info">
+						<div className="user-name">Akhil Shridhar</div>
+						<div className="user-location">
+							<span className="location-flag">🇺🇸</span>U.S.
+						</div>
+					</div>
+				</button>
 			</div>
-		);
-	};
+		</nav>
+	);
 
-	const renderSidebar = () => (
+	const Sidebar = () => (
 		<div className="chat-sidebar">
 			<div className="sidebar-header">
 				<button
@@ -482,8 +368,8 @@ function App() {
 		</div>
 	);
 
-	const renderHeader = () => {
-		const modeInfo = getModeInfo();
+	const ChatHeader = () => {
+		// const modeInfo = getModeInfo();
 
 		return (
 			<header className="chat-header">
@@ -519,10 +405,196 @@ function App() {
 		);
 	};
 
-	const renderMessages = () => (
+	const ExpenseField = ({ fieldName, value }) => {
+		const status = getFieldStatus(fieldName, value);
+		const field = sapRequirements[fieldName];
+
+		return (
+			<div className={`expense-field ${status}`}>
+				<div className="field-info">
+					<span className="field-label">
+						{formatFieldName(fieldName)}
+						{isFieldRequired(fieldName) && (
+							<span className="required-indicator">*</span>
+						)}
+					</span>
+					<span className={`field-value ${status}`}>
+						{formatFieldValue(value)}
+					</span>
+				</div>
+				{status === "invalid" && field && (
+					<div className="field-hint">
+						{field.valid_values
+							? `Must be one of: ${field.valid_values.join(", ")}`
+							: field.description}
+					</div>
+				)}
+				{status === "missing-required" && (
+					<div className="field-hint error">
+						This field is required for SAP Concur
+					</div>
+				)}
+			</div>
+		);
+	};
+
+	const ExpenseDataCard = ({ message }) => (
+		<div className="expense-data-message">
+			<p className="expense-intro">{message.content}</p>
+			<div className="expense-data-card">
+				<div className="expense-header">
+					<h4>🧾 SAP Concur Expense Data</h4>
+					<div className="mode-indicator">
+						<span className="mode-badge expense">Expense Mode</span>
+					</div>
+				</div>
+
+				<div className="expense-fields">
+					{Object.entries(message.expense_data).map(
+						([key, value]) => (
+							<ExpenseField
+								key={key}
+								fieldName={key}
+								value={value}
+							/>
+						)
+					)}
+				</div>
+
+				<div className="expense-actions">
+					<button
+						className="action-btn secondary"
+						onClick={() => setInputMessage("Change the ")}
+					>
+						✏️ Make Changes
+					</button>
+					<button className="action-btn primary">
+						📊 Create SAP Concur Report
+					</button>
+					<button
+						className="action-btn tertiary"
+						onClick={exitExpenseMode}
+					>
+						❌ Exit Expense Mode
+					</button>
+				</div>
+
+				<div className="quick-corrections">
+					<p className="quick-corrections-title">
+						💡 Quick corrections:
+					</p>
+					<div className="correction-examples">
+						{[
+							{
+								text: "Change the business purpose to client meeting",
+								prefix: "Change the business purpose to ",
+							},
+							{
+								text: "Set the amount to $50.00",
+								prefix: "Set the amount to ",
+							},
+							{
+								text: "The vendor should be Starbucks",
+								prefix: "The vendor should be ",
+							},
+						].map((correction, index) => (
+							<span
+								key={index}
+								className="correction-example"
+								onClick={() =>
+									setInputMessage(correction.prefix)
+								}
+							>
+								"{correction.text}"
+							</span>
+						))}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+
+	const Message = ({ message }) => {
+		const isUser = message.type === "user" || message.type === "image";
+
+		return (
+			<div
+				className={`message ${isUser ? "user" : "assistant"} ${
+					message.type
+				}`}
+			>
+				<div className="message-content">
+					{/* Image Message */}
+					{message.type === "image" && message.image_url && (
+						<div className="image-message">
+							<img
+								src={message.image_url}
+								alt="Receipt"
+								className="receipt-image"
+							/>
+							<p>{message.content}</p>
+						</div>
+					)}
+
+					{/* Expense Data Message */}
+					{message.type === "expense_data" &&
+						message.expense_data && (
+							<ExpenseDataCard message={message} />
+						)}
+
+					{/* System Message */}
+					{message.type === "system" && (
+						<div className="system-message">
+							<span className="system-icon">🔄</span>
+							<p>{message.content}</p>
+						</div>
+					)}
+
+					{/* Error Message */}
+					{message.content &&
+						message.content.includes(
+							"Sorry, I had trouble processing"
+						) && (
+							<div className="error-message">
+								{message.content}
+							</div>
+						)}
+
+					{/* Processing Message */}
+					{message.content &&
+						message.content.includes("Analyzing your receipt") && (
+							<div className="processing-message">
+								<p>{message.content}</p>
+							</div>
+						)}
+
+					{/* Regular Text Message */}
+					{(message.type === "user" ||
+						message.type === "assistant") &&
+						!["image", "system"].includes(message.type) &&
+						!message.content.includes(
+							"Sorry, I had trouble processing"
+						) &&
+						!message.content.includes("Analyzing your receipt") && (
+							<p>{message.content}</p>
+						)}
+
+					<div className="message-time">
+						{new Date(message.timestamp).toLocaleTimeString()}
+					</div>
+				</div>
+			</div>
+		);
+	};
+
+	const MessageArea = () => (
 		<div className="chat-container">
 			<div className="messages-container">
-				{messages.map(renderMessage)}
+				{messages.map((message) => (
+					<Message key={message.id} message={message} />
+				))}
+
+				{/* Loading Indicator */}
 				{isUploading && (
 					<div className="message assistant">
 						<div className="message-content">
@@ -531,10 +603,11 @@ function App() {
 								<span></span>
 								<span></span>
 							</div>
-							<p>🔍 Processing your receipt for SAP Concur...</p>
+							<p>🔍 Processing your receipt...</p>
 						</div>
 					</div>
 				)}
+
 				<div ref={messagesEndRef} />
 			</div>
 
@@ -553,7 +626,7 @@ function App() {
 		</div>
 	);
 
-	const renderInputArea = () => (
+	const InputArea = () => (
 		<div className="chat-input-container">
 			<div className="input-row">
 				<button
@@ -569,12 +642,7 @@ function App() {
 					ref={textareaRef}
 					value={inputMessage}
 					onChange={(e) => setInputMessage(e.target.value)}
-					onKeyPress={handleKeyPress}
-					placeholder={
-						chatMode === "expense"
-							? "Make corrections or type 'stop' to exit"
-							: "Ask me anything..."
-					}
+					placeholder="Ask me anything..."
 					className="message-input"
 					rows="1"
 					disabled={isUploading}
@@ -597,23 +665,12 @@ function App() {
 				onChange={handleFileSelect}
 				style={{ display: "none" }}
 			/>
-
-			<div className="input-hint">
-				{chatMode === "expense" ? (
-					<span>
-						💡 Make corrections: "Change the amount to $25.50" •
-						"Set business purpose to client meeting" • Type "stop"
-						to exit
-					</span>
-				) : (
-					<span>
-						💡 Upload receipt images for expense processing, or ask
-						me anything!
-					</span>
-				)}
-			</div>
 		</div>
 	);
+
+	// ========================================
+	// MAIN RENDER
+	// ========================================
 
 	// Loading State
 	if (!sessionId) {
@@ -625,7 +682,7 @@ function App() {
 		);
 	}
 
-	// Main Render
+	// Main App Render
 	return (
 		<div
 			className={`App chat-app ${
@@ -636,14 +693,15 @@ function App() {
 			onDragOver={handleDragEvents}
 			onDrop={handleDrop}
 		>
-			{/* Sidebar for Desktop */}
-			{!isMobile && renderSidebar()}
+			<NavBar />
 
-			{/* Main Chat Area */}
-			<div className="chat-main">
-				{renderHeader()}
-				{renderMessages()}
-				{renderInputArea()}
+			<div className="app-content">
+				{!isMobile && <Sidebar />}
+
+				<div className="chat-main">
+					<MessageArea />
+					<InputArea />
+				</div>
 			</div>
 		</div>
 	);

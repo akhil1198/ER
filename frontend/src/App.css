@@ -921,7 +921,8 @@ body {
 .typing-indicator {
 	display: flex;
 	gap: 4px;
-	margin-bottom: 0.5rem;
+	/* margin-bottom: 0.5rem; */
+	padding: 1rem;
 }
 
 .typing-indicator span {

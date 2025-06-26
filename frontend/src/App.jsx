@@ -1,10 +1,9 @@
-// App.js - Fixed version with stable component references
+// App.jsx - Simplified version without WebSocket complexity
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 
 // Constants
 const API_BASE_URL = "http://localhost:8000";
-const WS_BASE_URL = "ws://localhost:8000";
 
 // Main App Component
 function App() {
@@ -14,17 +13,16 @@ function App() {
 	const [sessionId, setSessionId] = useState(null);
 	const [messages, setMessages] = useState([]);
 	const [inputMessage, setInputMessage] = useState("");
-	const [isConnected, setIsConnected] = useState(false);
-	const [isUploading, setIsUploading] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
 	const [dragActive, setDragActive] = useState(false);
 	const [chatMode, setChatMode] = useState("normal");
+	const [currentExpense, setCurrentExpense] = useState(null);
 	const [sapRequirements, setSapRequirements] = useState({});
 	const [isMobile, setIsMobile] = useState(false);
 
 	// ========================================
 	// REFS
 	// ========================================
-	const wsRef = useRef(null);
 	const messagesEndRef = useRef(null);
 	const fileInputRef = useRef(null);
 	const textareaRef = useRef(null);
@@ -45,7 +43,6 @@ function App() {
 	useEffect(() => {
 		initializeChat();
 		loadSapRequirements();
-		return () => wsRef.current?.close();
 	}, []);
 
 	// Auto-scroll messages
@@ -63,141 +60,252 @@ function App() {
 	}, [inputMessage]);
 
 	// ========================================
-	// API FUNCTIONS (Memoized with useCallback)
+	// API FUNCTIONS
 	// ========================================
 
-	const initializeChat = useCallback(async () => {
+	const makeApiCall = useCallback(async (url, options = {}) => {
 		try {
-			const response = await fetch(
-				`${API_BASE_URL}/api/chat/create-session`,
-				{
-					method: "POST",
-				}
-			);
-			const data = await response.json();
-			setSessionId(data.session_id);
-			await loadMessages(data.session_id);
-			connectWebSocket(data.session_id);
+			const response = await fetch(`${API_BASE_URL}${url}`, {
+				headers: {
+					"Content-Type": "application/json",
+					...options.headers,
+				},
+				...options,
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			return await response.json();
 		} catch (error) {
-			console.error("Failed to initialize chat:", error);
+			console.error(`API call failed for ${url}:`, error);
+			throw error;
 		}
 	}, []);
 
+	const initializeChat = useCallback(async () => {
+		try {
+			const data = await makeApiCall("/api/chat/create-session", {
+				method: "POST",
+			});
+			setSessionId(data.session_id);
+			await loadMessages(data.session_id);
+		} catch (error) {
+			console.error("Failed to initialize chat:", error);
+		}
+	}, [makeApiCall]);
+
 	const loadSapRequirements = useCallback(async () => {
 		try {
-			const response = await fetch(
-				`${API_BASE_URL}/api/sap-concur/field-requirements`
+			const data = await makeApiCall(
+				"/api/sap-concur/field-requirements"
 			);
-			const data = await response.json();
 			setSapRequirements(data.fields);
 		} catch (error) {
 			console.error("Failed to load SAP requirements:", error);
 		}
-	}, []);
+	}, [makeApiCall]);
 
-	const loadMessages = useCallback(async (sessionId) => {
-		try {
-			const response = await fetch(
-				`${API_BASE_URL}/api/chat/${sessionId}/messages`
-			);
-			const data = await response.json();
-			setMessages(data.messages);
-			setChatMode(data.mode || "normal");
-		} catch (error) {
-			console.error("Failed to load messages:", error);
-		}
-	}, []);
+	const loadMessages = useCallback(
+		async (sessionId) => {
+			try {
+				const data = await makeApiCall(
+					`/api/chat/${sessionId}/messages`
+				);
+				setMessages(data.messages);
+				setChatMode(data.mode || "normal");
+				setCurrentExpense(data.current_expense || null);
+			} catch (error) {
+				console.error("Failed to load messages:", error);
+			}
+		},
+		[makeApiCall]
+	);
 
 	const sendMessage = useCallback(async () => {
-		if (!inputMessage.trim() || !sessionId) return;
+		if (!inputMessage.trim() || !sessionId || isLoading) return;
+
+		// Add user message immediately to the UI
+		const userMessage = {
+			id: `temp-${Date.now()}`,
+			type: "user",
+			content: inputMessage,
+			timestamp: new Date().toISOString(),
+			expense_data: null,
+			image_url: null,
+		};
+
+		// Update messages immediately and clear input
+		setMessages((prevMessages) => [...prevMessages, userMessage]);
+		const messageToSend = inputMessage;
+		setInputMessage("");
+		setIsLoading(true);
 
 		try {
-			await fetch(`${API_BASE_URL}/api/chat/${sessionId}/send-message`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ content: inputMessage }),
-			});
-			setInputMessage("");
+			const data = await makeApiCall(
+				`/api/chat/${sessionId}/send-message`,
+				{
+					method: "POST",
+					body: JSON.stringify({ content: messageToSend }),
+				}
+			);
+
+			// Replace all messages with the backend response
+			setMessages(data.messages);
+			setChatMode(data.mode);
+			setCurrentExpense(data.current_expense);
 		} catch (error) {
 			console.error("Failed to send message:", error);
+
+			// On error, add an error message but keep the user message
+			setMessages((prevMessages) => [
+				...prevMessages,
+				{
+					id: `error-${Date.now()}`,
+					type: "assistant",
+					content: `❌ Failed to send message: ${error.message}. Please try again.`,
+					timestamp: new Date().toISOString(),
+					expense_data: null,
+					image_url: null,
+				},
+			]);
+		} finally {
+			setIsLoading(false);
 		}
-	}, [inputMessage, sessionId]);
+	}, [inputMessage, sessionId, isLoading, makeApiCall]);
 
 	const sendMessageDirectly = useCallback(
 		async (content) => {
-			if (!sessionId) return;
+			if (!sessionId || isLoading) return;
+
+			// Add user message immediately to the UI
+			const userMessage = {
+				id: `temp-${Date.now()}`,
+				type: "user",
+				content: content,
+				timestamp: new Date().toISOString(),
+				expense_data: null,
+				image_url: null,
+			};
+
+			setMessages((prevMessages) => [...prevMessages, userMessage]);
+			setIsLoading(true);
 
 			try {
-				await fetch(
-					`${API_BASE_URL}/api/chat/${sessionId}/send-message`,
+				const data = await makeApiCall(
+					`/api/chat/${sessionId}/send-message`,
 					{
 						method: "POST",
-						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ content }),
 					}
 				);
+
+				// Replace all messages with the backend response
+				setMessages(data.messages);
+				setChatMode(data.mode);
+				setCurrentExpense(data.current_expense);
 			} catch (error) {
 				console.error("Failed to send message:", error);
+
+				// On error, add an error message
+				setMessages((prevMessages) => [
+					...prevMessages,
+					{
+						id: `error-${Date.now()}`,
+						type: "assistant",
+						content: `❌ Failed to send message: ${error.message}. Please try again.`,
+						timestamp: new Date().toISOString(),
+						expense_data: null,
+						image_url: null,
+					},
+				]);
+			} finally {
+				setIsLoading(false);
 			}
 		},
-		[sessionId]
+		[sessionId, isLoading, makeApiCall]
 	);
 
 	const handleFileUpload = useCallback(
 		async (file) => {
-			if (!file || !sessionId) return;
+			if (!file || !sessionId || isLoading) return;
 
-			setIsUploading(true);
+			// Create image URL for immediate display
+			const imageUrl = URL.createObjectURL(file);
+
+			// Add the image message immediately to the UI
+			const imageMessage = {
+				id: `temp-${Date.now()}`,
+				type: "image",
+				content: `Uploaded receipt: ${file.name}`,
+				timestamp: new Date().toISOString(),
+				image_url: imageUrl,
+				expense_data: null,
+			};
+
+			// Update messages immediately to show the uploaded image
+			setMessages((prevMessages) => [...prevMessages, imageMessage]);
+			setIsLoading(true);
+
 			try {
 				const formData = new FormData();
 				formData.append("file", file);
-				await fetch(
+
+				const response = await fetch(
 					`${API_BASE_URL}/api/chat/${sessionId}/upload-receipt`,
 					{
 						method: "POST",
 						body: formData,
 					}
 				);
+
+				if (!response.ok) {
+					throw new Error(`Upload failed: ${response.status}`);
+				}
+
+				const data = await response.json();
+
+				// Replace all messages with the backend response
+				// This will include the properly formatted image message plus processing results
+				setMessages(data.messages);
+				setChatMode(data.mode);
+				setCurrentExpense(data.current_expense);
+
+				// Clean up the temporary object URL
+				URL.revokeObjectURL(imageUrl);
 			} catch (error) {
 				console.error("Failed to upload file:", error);
+
+				// On error, remove the temporary image message and show error
+				setMessages((prevMessages) => {
+					const filteredMessages = prevMessages.filter(
+						(msg) => msg.id !== imageMessage.id
+					);
+					return [
+						...filteredMessages,
+						{
+							id: `error-${Date.now()}`,
+							type: "assistant",
+							content: `❌ Failed to upload receipt: ${error.message}. Please try again.`,
+							timestamp: new Date().toISOString(),
+							expense_data: null,
+							image_url: null,
+						},
+					];
+				});
+
+				// Clean up the temporary object URL
+				URL.revokeObjectURL(imageUrl);
 			} finally {
-				setIsUploading(false);
+				setIsLoading(false);
 			}
 		},
-		[sessionId]
+		[sessionId, isLoading]
 	);
 
 	// ========================================
-	// WEBSOCKET FUNCTIONS
-	// ========================================
-
-	const connectWebSocket = useCallback((sessionId) => {
-		wsRef.current = new WebSocket(`${WS_BASE_URL}/ws/chat/${sessionId}`);
-
-		wsRef.current.onopen = () => setIsConnected(true);
-		wsRef.current.onclose = () => setIsConnected(false);
-		wsRef.current.onerror = (error) => {
-			console.error("WebSocket error:", error);
-			setIsConnected(false);
-		};
-		wsRef.current.onmessage = (event) => {
-			const message = JSON.parse(event.data);
-			setMessages((prev) => [...prev, message]);
-
-			// Update chat mode based on message type
-			if (
-				message.type === "system" &&
-				message.content.includes("normal chat mode")
-			) {
-				setChatMode("normal");
-			} else if (message.type === "expense_data") {
-				setChatMode("expense");
-			}
-		};
-	}, []);
-
-	// ========================================
-	// EVENT HANDLERS (Memoized with useCallback)
+	// EVENT HANDLERS
 	// ========================================
 
 	const handleDragEvents = useCallback((e) => {
@@ -239,7 +347,7 @@ function App() {
 	);
 
 	// ========================================
-	// UTILITY FUNCTIONS (Memoized with useCallback)
+	// UTILITY FUNCTIONS
 	// ========================================
 
 	const scrollToBottom = useCallback(() => {
@@ -664,15 +772,15 @@ function App() {
 							})}
 
 							{/* Loading Indicator */}
-							{isUploading && (
+							{isLoading && (
 								<div className="message assistant">
 									<div className="message-content">
+										<p>🔍 Processing...</p>
 										<div className="typing-indicator">
 											<span></span>
 											<span></span>
 											<span></span>
 										</div>
-										<p>🔍 Processing your receipt...</p>
 									</div>
 								</div>
 							)}
@@ -695,13 +803,13 @@ function App() {
 						)}
 					</div>
 
-					{/* Input Area - Fixed to prevent re-rendering */}
+					{/* Input Area */}
 					<div className="chat-input-container">
 						<div className="input-row">
 							<button
 								className="attach-btn"
 								onClick={() => fileInputRef.current?.click()}
-								disabled={isUploading}
+								disabled={isLoading}
 								title="Upload receipt"
 							>
 								📎
@@ -717,12 +825,12 @@ function App() {
 								placeholder="Ask me anything..."
 								className="message-input"
 								rows="1"
-								disabled={isUploading}
+								disabled={isLoading}
 							/>
 
 							<button
 								onClick={sendMessage}
-								disabled={!inputMessage.trim() || isUploading}
+								disabled={!inputMessage.trim() || isLoading}
 								className="send-btn"
 								title="Send message"
 							>

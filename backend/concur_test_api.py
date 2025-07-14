@@ -202,8 +202,8 @@ async def get_currencies():
 # =============================================================================
 
 ## fetches expense reports based on report ID, refresh bearer token when trying. 
-# curl --location --request GET 'https://www-us2.api.concursolutions.com/expensereports/v4/users/9e4f220f-b716-4738-9105-1153e04188ae/context/TRAVELER/reports/341AD93E74CB4776942B/expenses' \
-# --header 'Authorization: Bearer eyJraWQiOiIxNDU1NjE0MDIyIiwiYWxnIjoiUlMyNTYiLCJ0eXAiOiJKV1QifQ.eyJjb25jdXIuc2NvcGVzIjpbIm9wZW5pZCIsInF1aWNrZXhwZW5zZS53cml0ZW9ubHkiLCJ1c2VyLnJlYWQiLCJyZWNlaXB0cy53cml0ZW9ubHkiLCJleHBlbnNlLnJlcG9ydC5yZWFkIiwiZXhwZW5zZS5yZXBvcnQucmVhZHdyaXRlIiwiZXhwZW5zZS5yZXBvcnQud29ya2Zsb3dzdGF0dXMud3JpdGUiXSwiYXVkIjoiKiIsImNvbmN1ci5hcHBJZCI6IjlhMGE2N2NkLTU0YmMtNGZlNi1hODhmLWVkNmU1MjcwNDNjOSIsInN1YiI6ImQ5ODc2OWQwLTIyZTAtNDQ4NS1hMTZkLTI5NzczMTRiZjM5NCIsImlzcyI6Imh0dHBzOi8vdXMyLmFwaS5jb25jdXJzb2x1dGlvbnMuY29tIiwiY29uY3VyLnByb2ZpbGUiOiJodHRwczovL3VzMi5hcGkuY29uY3Vyc29sdXRpb25zLmNvbS9wcm9maWxlL3YxL3ByaW5jaXBhbHMvZDk4NzY5ZDAtMjJlMC00NDg1LWExNmQtMjk3NzMxNGJmMzk0IiwiZXhwIjoxNzUxNDA0ODIxLCJjb25jdXIudmVyc2lvbiI6MywiY29uY3VyLnR5cGUiOiJjb21wYW55IiwiY29uY3VyLmFwcCI6Imh0dHBzOi8vdXMyLmFwaS5jb25jdXJzb2x1dGlvbnMuY29tL3Byb2ZpbGUvdjEvYXBwcy85YTBhNjdjZC01NGJjLTRmZTYtYTg4Zi1lZDZlNTI3MDQzYzkiLCJuYmYiOjE3NTE0MDEyMTEsImlhdCI6MTc1MTQwMTIyMX0.dlGrmHlCJXwGkQJIkZMLtb62vUfzXcErClEUaZJ4AO6eF4lKlhMLofQbFIexe93ZXiDw4Rd68m3dV0HMARMuz5bx94HGeYLCz52vrcbP02fY10Z5sssertc07wBUQQNuQS662c4YkmpBKiMt4coGOMDFEhqjArGmnY5JyJfP3VazxTMuN3Gv7WK2IwFX_LF_94nAWNmPH_pJLrYhVMbg98BmJbnhQsc84faMbczPQNWE2ryvUOG_aSHP7yLDaxcZeYItB5SwTuTEO-85V1pTbNwgUHyJsXpMXv66UV5eOHQf80IuA0nrtaWYCUdUrWBamCy2XT0aENyZ_AZ75l5OBg' \
+# curl --location --request GET 'url' \
+# --header 'Authorization: Bearer <your_access_token>' \
 # --header 'Content-Type: application/json'
 
 @app.get("/reports")

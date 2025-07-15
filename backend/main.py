@@ -1,4 +1,4 @@
-# main.py - Fixed FastAPI Backend for Expense Processing
+# main.py - Updated FastAPI Backend for Expense Processing with Tax Compliance
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -54,11 +54,21 @@ class ReportCreateRequest(BaseModel):
     comment: Optional[str] = ""
     country_code: str = "US"
     country_subdivision_code: str = "US-WA"
+    gift_policy_compliance: Optional[bool] = False  # New field for custom16
+    irs_tax_policy_compliance: Optional[bool] = False  # New field for custom6
+
+class TaxComplianceRequest(BaseModel):
+    report_name: str
+    business_purpose: str
+    comment: Optional[str] = ""
+    gift_policy_compliance: bool
+    irs_tax_policy_compliance: bool
 
 # Global variables for demo
 current_expense_data: Optional[ExpenseData] = None
-conversation_state: str = "initial"  # initial, waiting_for_choice, waiting_for_report_details, waiting_for_report_selection
+conversation_state: str = "initial"  # initial, waiting_for_choice, waiting_for_report_details, waiting_for_report_selection, waiting_for_tax_compliance
 available_reports: List[Dict] = []
+pending_report_data: Optional[Dict] = None  # Store report data while waiting for tax compliance
 
 def get_sap_headers():
     """Get SAP Concur API headers"""
@@ -169,15 +179,15 @@ async def get_sap_reports() -> List[Dict]:
         raise HTTPException(status_code=500, detail=f"Failed to fetch SAP reports: {str(e)}")
 
 async def create_sap_report(report_data: ReportCreateRequest) -> Dict:
-    """Create new expense report in SAP Concur"""
+    """Create new expense report in SAP Concur with tax compliance"""
     try:
         url = f"{SAP_BASE_URL}/expensereports/v4/users/{SAP_USER_ID}/context/TRAVELER/reports"
         headers = get_sap_headers()
         
         payload = {
             "customData": [
-                {"id": "custom16", "value": "true"},
-                {"id": "custom6", "value": "true"}
+                {"id": "custom16", "value": str(report_data.gift_policy_compliance).lower()},
+                {"id": "custom6", "value": str(report_data.irs_tax_policy_compliance).lower()}
             ],
             "businessPurpose": report_data.business_purpose,
             "comment": report_data.comment,
@@ -202,7 +212,7 @@ async def create_sap_report(report_data: ReportCreateRequest) -> Dict:
         print(f"SAP Create Report Error: {str(e)}")  # Debug log
         raise HTTPException(status_code=500, detail=f"Failed to create SAP report: {str(e)}")
 
-def parse_report_details(message: str) -> Optional[ReportCreateRequest]:
+def parse_report_details(message: str) -> Optional[Dict]:
     """Parse report details from user message with better flexibility"""
     
     # Try structured format first
@@ -225,11 +235,11 @@ def parse_report_details(message: str) -> Optional[ReportCreateRequest]:
                 comment = line.split(':', 1)[1].strip()
         
         if report_name and business_purpose:
-            return ReportCreateRequest(
-                name=report_name,
-                business_purpose=business_purpose,
-                comment=comment or ""
-            )
+            return {
+                "name": report_name,
+                "business_purpose": business_purpose,
+                "comment": comment or ""
+            }
     
     # Try to extract from natural language
     message_lower = message.lower()
@@ -262,13 +272,52 @@ def parse_report_details(message: str) -> Optional[ReportCreateRequest]:
             break
     
     if extracted_name and extracted_purpose:
-        return ReportCreateRequest(
-            name=extracted_name,
-            business_purpose=extracted_purpose,
-            comment=""
-        )
+        return {
+            "name": extracted_name,
+            "business_purpose": extracted_purpose,
+            "comment": ""
+        }
     
     return None
+
+def parse_tax_compliance_response(message: str) -> Optional[Dict]:
+    """Parse tax compliance checkbox responses from user message"""
+    message_lower = message.lower()
+    
+    # Initialize default values
+    gift_policy = False
+    irs_tax_policy = False
+    
+    # Look for positive indicators for gift policy compliance
+    if any(phrase in message_lower for phrase in [
+        "gift policy: true", "gift policy: yes", "gift policy compliance: true", 
+        "gift policy compliance: yes", "gift: true", "gift: yes",
+        "custom16: true", "custom16: yes", "first: true", "first: yes",
+        "✓ gift", "checked gift", "agree gift", "accept gift"
+    ]):
+        gift_policy = True
+    
+    # Look for positive indicators for IRS tax policy compliance
+    if any(phrase in message_lower for phrase in [
+        "irs tax policy: true", "irs tax policy: yes", "irs: true", "irs: yes",
+        "tax policy: true", "tax policy: yes", "custom6: true", "custom6: yes",
+        "second: true", "second: yes", "✓ irs", "checked irs", "agree irs", "accept irs"
+    ]):
+        irs_tax_policy = True
+    
+    # Look for structured format with both checkboxes
+    lines = message.split('\n')
+    for line in lines:
+        line = line.strip().lower()
+        if 'gift' in line and ('true' in line or 'yes' in line or '✓' in line):
+            gift_policy = True
+        if 'irs' in line and ('true' in line or 'yes' in line or '✓' in line):
+            irs_tax_policy = True
+    
+    return {
+        "gift_policy_compliance": gift_policy,
+        "irs_tax_policy_compliance": irs_tax_policy
+    }
 
 # API Endpoints
 @app.post("/api/process-receipt")
@@ -303,7 +352,7 @@ async def process_receipt(file: UploadFile = File(...)):
 @app.post("/api/chat")
 async def chat_endpoint(message: ChatMessage):
     """Handle chat messages and routing"""
-    global current_expense_data, conversation_state, available_reports
+    global current_expense_data, conversation_state, available_reports, pending_report_data
     
     user_message = message.content.strip()
     print(f"User message: {user_message}, State: {conversation_state}")  # Debug log
@@ -364,25 +413,101 @@ async def chat_endpoint(message: ChatMessage):
             report_details = parse_report_details(user_message)
             
             if report_details:
-                try:
-                    created_report = await create_sap_report(report_details)
-                    conversation_state = "initial"
-                    current_expense_data = None
-                    
-                    return {
-                        "success": True,
-                        "message": f"✅ **Report created successfully!**\n\n📊 **Report Details:**\n• Name: {report_details.name}\n• Purpose: {report_details.business_purpose}\n• Report ID: {created_report.get('reportId', 'N/A')}\n\n🎉 Your expense data is ready to be added to this report!\n\n*Note: Expense line item addition will be implemented in the next phase.*"
-                    }
-                    
-                except Exception as e:
-                    return {
-                        "success": False,
-                        "message": f"❌ Failed to create report: {str(e)}\n\nPlease try again with the report details."
-                    }
+                # Store the report details and ask for tax compliance
+                pending_report_data = report_details
+                conversation_state = "waiting_for_tax_compliance"
+                
+                return {
+                    "success": True,
+                    "message": "Perfect! I have your report details:\n\n📊 **Report Information:**\n• **Name**: {}\n• **Purpose**: {}\n\n🏛️ **Tax & Policy Compliance Required**\n\nBefore creating your expense report, you must agree to the following policies as required by IRS and company regulations:\n\n☐ **Gift Policy Compliance Certification** - I certify that this expense complies with company gift policy guidelines\n☐ **IRS T&E Tax Policy Certification** - I certify that this expense complies with IRS Travel & Entertainment tax policies\n\n**To proceed, please click the button to confirm that you agree to both policies**\n\nOr simply type **\"I agree to both policies\"** if you accept both certifications.".format(
+                        report_details['name'], 
+                        report_details['business_purpose']
+                    ),
+                    "needs_tax_compliance": True
+                }
             else:
                 return {
                     "success": False,
                     "message": "I couldn't understand the report details. Please provide:\n\n**Report Name**: What should we call this report?\n**Business Purpose**: What's the purpose?\n\nExample:\n```\nReport Name: July Office Supplies\nBusiness Purpose: Monthly office supplies\n```"
+                }
+        
+        elif conversation_state == "waiting_for_tax_compliance":
+            # Parse tax compliance response
+            if any(phrase in user_message.lower() for phrase in [
+                "i agree to both", "both policies", "agree to both", "accept both",
+                "yes to both", "✓", "true", "agree", "accept", "yes"
+            ]):
+                # Check if we have pending report data
+                if not pending_report_data:
+                    return {
+                        "success": False,
+                        "message": "❌ Session expired. Please start over by creating a new report."
+                    }
+                
+                # If user agrees to both or provides checkmarks, assume both are true
+                compliance_data = parse_tax_compliance_response(user_message)
+                
+                # If user said "agree to both" or similar, set both to true
+                if any(phrase in user_message.lower() for phrase in [
+                    "i agree to both", "both policies", "agree to both", "accept both", "yes to both"
+                ]):
+                    compliance_data["gift_policy_compliance"] = True
+                    compliance_data["irs_tax_policy_compliance"] = True
+                
+                # Check if at least one policy is agreed to
+                if compliance_data and (compliance_data.get("gift_policy_compliance") or compliance_data.get("irs_tax_policy_compliance")):
+                    try:
+                        # Create the report with compliance data
+                        report_request = ReportCreateRequest(
+                            name=pending_report_data["name"],
+                            business_purpose=pending_report_data["business_purpose"],
+                            comment=pending_report_data.get("comment", ""),
+                            gift_policy_compliance=compliance_data.get("gift_policy_compliance", False),
+                            irs_tax_policy_compliance=compliance_data.get("irs_tax_policy_compliance", False)
+                        )
+                        
+                        created_report = await create_sap_report(report_request)
+                        
+                        # Store the data before clearing it
+                        report_name = pending_report_data["name"]
+                        report_purpose = pending_report_data["business_purpose"]
+                        
+                        # Clear state
+                        conversation_state = "initial"
+                        current_expense_data = None
+                        pending_report_data = None
+                        
+                        compliance_status = []
+                        if compliance_data.get("gift_policy_compliance"):
+                            compliance_status.append("✅ Gift Policy Compliance")
+                        else:
+                            compliance_status.append("❌ Gift Policy Compliance")
+                        
+                        if compliance_data.get("irs_tax_policy_compliance"):
+                            compliance_status.append("✅ IRS T&E Tax Policy Compliance")
+                        else:
+                            compliance_status.append("❌ IRS T&E Tax Policy Compliance")
+                        
+                        return {
+                            "success": True,
+                            "message": f"✅ **Report created successfully!**\n\n📊 **Report Details:**\n• **Name**: {report_name}\n• **Purpose**: {report_purpose}\n• **Report ID**: {created_report.get('reportId', 'N/A')}\n\n🏛️ **Policy Compliance Status:**\n{chr(10).join(compliance_status)}\n\n🎉 Your expense data is ready to be added to this report!\n\n*Note: Expense line item addition will be implemented in the next phase.*"
+                        }
+                        
+                    except Exception as e:
+                        print(f"Report creation error: {str(e)}")  # Debug log
+                        return {
+                            "success": False,
+                            "message": f"❌ Failed to create report: {str(e)}\n\nPlease try again with the compliance confirmations."
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "message": "⚠️ **Policy Compliance Required**\n\nYou must agree to at least one of the policy certifications to create an expense report. Please confirm:\n\n☐ **Gift Policy Compliance Certification**\n☐ **IRS T&E Tax Policy Certification**\n\nType **\"I agree to both policies\"** or confirm each policy individually."
+                    }
+            else:
+                return {
+                    "success": False,
+                    "message": "🏛️ **Policy Compliance Required**\n\nPlease confirm your agreement to the required policies:\n\n☐ **Gift Policy Compliance Certification**\n☐ **IRS T&E Tax Policy Certification**\n\nRespond with:\n```\nGift Policy Compliance: ✓\nIRS Tax Policy Compliance: ✓\n```\n\nOr type **\"I agree to both policies\"** to accept both."
                 }
         
         elif conversation_state == "waiting_for_report_selection":
@@ -574,6 +699,27 @@ async def create_report(report_data: ReportCreateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/tax-compliance")
+async def process_tax_compliance(compliance_data: TaxComplianceRequest):
+    """Process tax compliance and create report"""
+    try:
+        report_request = ReportCreateRequest(
+            name=compliance_data.report_name,
+            business_purpose=compliance_data.business_purpose,
+            comment=compliance_data.comment,
+            gift_policy_compliance=compliance_data.gift_policy_compliance,
+            irs_tax_policy_compliance=compliance_data.irs_tax_policy_compliance
+        )
+        
+        created_report = await create_sap_report(report_request)
+        return {
+            "success": True,
+            "message": "Report created successfully with tax compliance!",
+            "report": created_report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/health")
 async def health_check():
     return {
@@ -596,6 +742,7 @@ async def root():
             "chat": "POST /api/chat",
             "get_reports": "GET /api/reports",
             "create_report": "POST /api/reports",
+            "tax_compliance": "POST /api/tax-compliance",
             "health": "GET /api/health"
         }
     }

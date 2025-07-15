@@ -57,18 +57,172 @@ class ReportCreateRequest(BaseModel):
     gift_policy_compliance: Optional[bool] = False  # New field for custom16
     irs_tax_policy_compliance: Optional[bool] = False  # New field for custom6
 
-class TaxComplianceRequest(BaseModel):
-    report_name: str
-    business_purpose: str
-    comment: Optional[str] = ""
-    gift_policy_compliance: bool
-    irs_tax_policy_compliance: bool
+class ExpenseEntryRequest(BaseModel):
+    report_id: str
+    expense_type_code: str = "01028"  # Default expense type
+    transaction_date: str
+    transaction_amount: float
+    transaction_currency_code: str = "USD"
+    payment_type_id: str = "gWuT0oX4FNnukaeUcpOO3WSub$p5tY"  # Default payment type
+    description: str
+    vendor_description: str
+    location_id: str = "D23A4483615E4A2084260E97E5F0D5E0"  # Default location (Miami)
+    location_name: str = "Miami, Florida"
+    location_city: str = "Miami"
+    location_country_subdivision: str = "US-FL"
+    location_country: str = "US"
+    is_personal: bool = False
+    is_billable: bool = False
+    tax_receipt_type: str = "R"
+
+async def create_expense_entry(expense_data: ExpenseEntryRequest) -> Dict:
+    """Create new expense entry in SAP Concur"""
+    try:
+        url = f"{SAP_BASE_URL}/api/v3.0/expense/entries?user={SAP_USER_LOGIN}"
+        headers = get_sap_headers()
+        
+        # Validate and sanitize data before sending
+        description = expense_data.description[:64] if expense_data.description else "Business expense"
+        vendor_description = expense_data.vendor_description[:64] if expense_data.vendor_description else "Vendor"
+        
+        payload = {
+            "ReportID": expense_data.report_id,
+            "ExpenseTypeCode": expense_data.expense_type_code,
+            "TransactionDate": expense_data.transaction_date,
+            "TransactionAmount": expense_data.transaction_amount,
+            "TransactionCurrencyCode": expense_data.transaction_currency_code,
+            "PaymentTypeID": expense_data.payment_type_id,
+            "Description": description,
+            "VendorDescription": vendor_description,
+            "location": {
+                "id": expense_data.location_id,
+                "name": expense_data.location_name,
+                "city": expense_data.location_city,
+                "countrySubDivisionCode": expense_data.location_country_subdivision,
+                "countryCode": expense_data.location_country
+            },
+            "IsPersonal": expense_data.is_personal,
+            "IsBillable": expense_data.is_billable,
+            "TaxReceiptType": expense_data.tax_receipt_type
+        }
+        
+        print(f"Creating expense entry at: {url}")  # Debug log
+        print(f"Payload: {json.dumps(payload, indent=2)}")  # Debug log
+        print(f"Description length: {len(description)}")  # Debug log
+        print(f"Vendor description length: {len(vendor_description)}")  # Debug log
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        print(f"Create Expense Response Status: {response.status_code}")  # Debug log
+        print(f"Create Expense Response: {response.text}")  # Debug log
+        
+        if response.status_code == 400:
+            # Parse the error message for better user feedback
+            try:
+                error_data = response.json()
+                error_message = error_data.get('Message', 'Bad Request')
+                print(f"SAP API Error: {error_message}")
+                raise HTTPException(status_code=400, detail=f"SAP Concur API error: {error_message}")
+            except (json.JSONDecodeError, KeyError):
+                raise HTTPException(status_code=400, detail=f"SAP Concur API error: {response.text}")
+        
+        response.raise_for_status()
+        
+        return response.json()
+        
+    except requests.exceptions.RequestException as e:
+        print(f"SAP Create Expense Entry Error: {str(e)}")  # Debug log
+        error_detail = f"Failed to create expense entry: {str(e)}"
+        
+        # Extract more specific error info if available
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                error_data = e.response.json()
+                if 'Message' in error_data:
+                    error_detail = f"SAP Concur error: {error_data['Message']}"
+            except:
+                pass
+                
+        raise HTTPException(status_code=500, detail=error_detail)
+
+def map_expense_data_to_entry(expense_data: ExpenseData, report_id: str) -> ExpenseEntryRequest:
+    """Map extracted expense data to SAP Concur expense entry format"""
+    
+    # Map expense types to SAP codes
+    expense_type_mapping = {
+        "meals": "01028",
+        "travel": "01001", 
+        "accommodation": "01002",
+        "transportation": "01003",
+        "office supplies": "01004",
+        "software": "01005",
+        "entertainment": "01006",
+        "fuel": "01007",
+        "parking": "01008",
+        "other": "01028"
+    }
+    
+    # Map payment types 
+    payment_type_mapping = {
+        "credit card": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+        "cash": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", # Using same for demo
+        "bank transfer": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+        "check": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+        "other": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY"
+    }
+    
+    # Get expense type code
+    expense_type_key = (expense_data.expense_type or "other").lower()
+    expense_type_code = expense_type_mapping.get(expense_type_key, "01028")
+    
+    # Get payment type ID
+    payment_type_key = (expense_data.payment_type or "credit card").lower()
+    payment_type_id = payment_type_mapping.get(payment_type_key, "gWuT0oX4FNnukaeUcpOO3WSub$p5tY")
+    
+    # Create description with SAP Concur length limits (64 characters max)
+    description_parts = []
+    if expense_data.business_purpose:
+        description_parts.append(expense_data.business_purpose)
+    
+    # If no business purpose, use a simple description
+    if not description_parts:
+        if expense_data.vendor:
+            description_parts.append(f"Expense at {expense_data.vendor}")
+        else:
+            description_parts.append("Business expense")
+    
+    # Join and truncate to 64 characters
+    description = " - ".join(description_parts)
+    if len(description) > 64:
+        description = description[:61] + "..."
+    
+    # Truncate vendor description to safe length (typically 64 chars)
+    vendor_description = expense_data.vendor or "Unknown Vendor"
+    if len(vendor_description) > 64:
+        vendor_description = vendor_description[:61] + "..."
+    
+    return ExpenseEntryRequest(
+        report_id=report_id,
+        expense_type_code=expense_type_code,
+        transaction_date=expense_data.transaction_date or datetime.now().strftime('%Y-%m-%d'),
+        transaction_amount=expense_data.amount or 0.0,
+        transaction_currency_code=expense_data.currency or "USD",
+        payment_type_id=payment_type_id,
+        description=description,
+        vendor_description=vendor_description,
+        # Use default location for now - could be enhanced to map cities
+        location_id="D23A4483615E4A2084260E97E5F0D5E0",
+        location_name="Miami, Florida",
+        location_city="Miami",
+        location_country_subdivision="US-FL",
+        location_country="US"
+    )
 
 # Global variables for demo
 current_expense_data: Optional[ExpenseData] = None
 conversation_state: str = "initial"  # initial, waiting_for_choice, waiting_for_report_details, waiting_for_report_selection, waiting_for_tax_compliance
 available_reports: List[Dict] = []
 pending_report_data: Optional[Dict] = None  # Store report data while waiting for tax compliance
+pending_expense_data: Optional[ExpenseData] = None  # Store expense data during report creation flow
 
 def get_sap_headers():
     """Get SAP Concur API headers"""
@@ -202,11 +356,29 @@ async def create_sap_report(report_data: ReportCreateRequest) -> Dict:
         
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         print(f"Create Report Response Status: {response.status_code}")  # Debug log
-        print(f"Create Report Response: {response.text}")  # Debug log
+        print(f"Create Report Response Headers: {dict(response.headers)}")  # Debug log
+        print(f"Create Report Response Text: {response.text}")  # Debug log
         
         response.raise_for_status()
         
-        return response.json()
+        # Parse the response
+        response_data = response.json() if response.text else {}
+        
+        # SAP Concur v4 API might return the report ID in different ways
+        # Let's also check the Location header for the created resource
+        if 'Location' in response.headers:
+            location = response.headers['Location']
+            print(f"Location header: {location}")  # Debug log
+            # Extract report ID from Location header if present
+            # Location might be like: /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}
+            if '/reports/' in location:
+                report_id_from_location = location.split('/reports/')[-1]
+                if not response_data.get('reportId'):
+                    response_data['reportId'] = report_id_from_location
+                    print(f"Extracted report ID from Location header: {report_id_from_location}")
+        
+        print(f"Final response data: {response_data}")  # Debug log
+        return response_data
         
     except requests.exceptions.RequestException as e:
         print(f"SAP Create Report Error: {str(e)}")  # Debug log
@@ -352,7 +524,7 @@ async def process_receipt(file: UploadFile = File(...)):
 @app.post("/api/chat")
 async def chat_endpoint(message: ChatMessage):
     """Handle chat messages and routing"""
-    global current_expense_data, conversation_state, available_reports, pending_report_data
+    global current_expense_data, conversation_state, available_reports, pending_report_data, pending_expense_data
     
     user_message = message.content.strip()
     print(f"User message: {user_message}, State: {conversation_state}")  # Debug log
@@ -361,6 +533,8 @@ async def chat_endpoint(message: ChatMessage):
         # Handle different conversation states
         if conversation_state == "waiting_for_choice":
             if user_message in ["1", "new", "create new", "create"]:
+                # Store current expense data before starting report creation flow
+                pending_expense_data = current_expense_data
                 conversation_state = "waiting_for_report_details"
                 return {
                     "success": True,
@@ -419,7 +593,7 @@ async def chat_endpoint(message: ChatMessage):
                 
                 return {
                     "success": True,
-                    "message": "Perfect! I have your report details:\n\n📊 **Report Information:**\n• **Name**: {}\n• **Purpose**: {}\n\n🏛️ **Tax & Policy Compliance Required**\n\nBefore creating your expense report, you must agree to the following policies as required by IRS and company regulations:\n\n☐ **Gift Policy Compliance Certification** - I certify that this expense complies with company gift policy guidelines\n☐ **IRS T&E Tax Policy Certification** - I certify that this expense complies with IRS Travel & Entertainment tax policies\n\n**To proceed, please click the button to confirm that you agree to both policies**\n\nOr simply type **\"I agree to both policies\"** if you accept both certifications.".format(
+                    "message": "Perfect! I have your report details:\n\n📊 **Report Information:**\n• **Name**: {}\n• **Purpose**: {}\n\n🏛️ **Tax & Policy Compliance Required**\n\nBefore creating your expense report, you must agree to the following policies as required by IRS and company regulations:\n\n**Please confirm your agreement by checking both boxes below:**\n\n☐ **Gift Policy Compliance Certification** - I certify that this expense complies with company gift policy guidelines\n☐ **IRS T&E Tax Policy Certification** - I certify that this expense complies with IRS Travel & Entertainment tax policies\n\n**To proceed, please respond with:**\n```\nGift Policy Compliance: ✓\nIRS Tax Policy Compliance: ✓\n```\n\nOr simply type **\"I agree to both policies\"** if you accept both certifications.".format(
                         report_details['name'], 
                         report_details['business_purpose']
                     ),
@@ -468,14 +642,64 @@ async def chat_endpoint(message: ChatMessage):
                         
                         created_report = await create_sap_report(report_request)
                         
-                        # Store the data before clearing it
+                        # Store the data before processing
                         report_name = pending_report_data["name"]
                         report_purpose = pending_report_data["business_purpose"]
+                        
+                        # Extract the report ID from the response - this is crucial!
+                        report_id = None
+                        if isinstance(created_report, dict):
+                            # Try different possible response formats from SAP Concur
+                            report_id = (created_report.get('reportId') or 
+                                       created_report.get('ReportId') or 
+                                       created_report.get('ID') or 
+                                       created_report.get('Id'))
+                        
+                        print(f"Created report response: {created_report}")  # Debug log
+                        print(f"Extracted report ID: {report_id}")  # Debug log
+                        
+                        # Try to add expense entry if we have both expense data and report ID
+                        expense_added = False
+                        expense_details = ""
+                        expense_error = ""
+                        
+                        # Use pending_expense_data (preserved from the beginning) instead of current_expense_data
+                        expense_data_to_use = pending_expense_data or current_expense_data
+                        
+                        if expense_data_to_use and report_id:
+                            try:
+                                print(f"Attempting to add expense to report ID: {report_id}")  # Debug log
+                                
+                                # Map expense data to entry format using the NEW report ID
+                                expense_entry_data = map_expense_data_to_entry(expense_data_to_use, report_id)
+                                
+                                print(f"Mapped expense entry data: {expense_entry_data}")  # Debug log
+                                
+                                # Create the expense entry
+                                created_entry = await create_expense_entry(expense_entry_data)
+                                expense_added = True
+                                
+                                print(f"Successfully created expense entry: {created_entry}")  # Debug log
+                                
+                                expense_details = f"\n\n💰 **Expense Added:**\n• **Vendor**: {expense_entry_data.vendor_description}\n• **Amount**: ${expense_entry_data.transaction_amount:.2f} {expense_entry_data.transaction_currency_code}\n• **Date**: {expense_entry_data.transaction_date}\n• **Description**: {expense_entry_data.description}"
+                                
+                            except Exception as e:
+                                print(f"Expense entry creation error during report creation: {str(e)}")  # Debug log
+                                expense_error = str(e)
+                                expense_details = f"\n\n⚠️ **Note**: Report created successfully, but there was an issue adding the expense entry: {str(e)}\nYou can manually add the expense in SAP Concur."
+                        
+                        elif not report_id:
+                            print("No report ID found in response - cannot add expense")  # Debug log
+                            expense_details = f"\n\n⚠️ **Note**: Report created successfully, but could not extract report ID to add expense entry.\nYou can manually add the expense in SAP Concur."
+                        
+                        elif not expense_data_to_use:
+                            print("No expense data available - skipping expense entry creation")  # Debug log
                         
                         # Clear state
                         conversation_state = "initial"
                         current_expense_data = None
                         pending_report_data = None
+                        pending_expense_data = None  # Clear the pending expense data
                         
                         compliance_status = []
                         if compliance_data.get("gift_policy_compliance"):
@@ -488,13 +712,20 @@ async def chat_endpoint(message: ChatMessage):
                         else:
                             compliance_status.append("❌ IRS T&E Tax Policy Compliance")
                         
+                        success_message = f"✅ **Report created successfully!**\n\n📊 **Report Details:**\n• **Name**: {report_name}\n• **Purpose**: {report_purpose}\n• **Report ID**: {report_id or 'N/A'}\n\n🏛️ **Policy Compliance Status:**\n{chr(10).join(compliance_status)}{expense_details}\n\n🎉 {'Your expense report is complete with the expense entry!' if expense_added else 'Your expense report is ready for expenses!'}"
+                        
                         return {
                             "success": True,
-                            "message": f"✅ **Report created successfully!**\n\n📊 **Report Details:**\n• **Name**: {report_name}\n• **Purpose**: {report_purpose}\n• **Report ID**: {created_report.get('reportId', 'N/A')}\n\n🏛️ **Policy Compliance Status:**\n{chr(10).join(compliance_status)}\n\n🎉 Your expense data is ready to be added to this report!\n\n*Note: Expense line item addition will be implemented in the next phase.*"
+                            "message": success_message
                         }
                         
                     except Exception as e:
                         print(f"Report creation error: {str(e)}")  # Debug log
+                        # Clear state on error
+                        conversation_state = "initial"
+                        current_expense_data = None
+                        pending_report_data = None
+                        pending_expense_data = None
                         return {
                             "success": False,
                             "message": f"❌ Failed to create report: {str(e)}\n\nPlease try again with the compliance confirmations."
@@ -515,13 +746,39 @@ async def chat_endpoint(message: ChatMessage):
                 selection = int(user_message)
                 if 1 <= selection <= len(available_reports):
                     selected_report = available_reports[selection - 1]
-                    conversation_state = "initial"
-                    current_expense_data = None
                     
-                    return {
-                        "success": True,
-                        "message": f"✅ **Report selected!**\n\n📊 **Selected Report:**\n• Name: {selected_report['name']}\n• Purpose: {selected_report['purpose']}\n• Current Total: {selected_report['total']} {selected_report['currency']}\n• Status: {selected_report['status']}\n\n🎉 Your expense is ready to be added to this report!\n\n*Note: Expense line item addition will be implemented in the next phase.*"
-                    }
+                    # Create expense entry for the selected report
+                    if current_expense_data:
+                        try:
+                            # Map expense data to entry format
+                            expense_entry_data = map_expense_data_to_entry(current_expense_data, selected_report['id'])
+                            
+                            # Create the expense entry
+                            created_entry = await create_expense_entry(expense_entry_data)
+                            
+                            conversation_state = "initial"
+                            current_expense_data = None
+                            
+                            return {
+                                "success": True,
+                                "message": f"✅ **Expense added successfully!**\n\n📊 **Report Details:**\n• **Report**: {selected_report['name']}\n• **Previous Total**: {selected_report['total']} {selected_report['currency']}\n• **New Expense**: ${expense_entry_data.transaction_amount:.2f}\n• **Status**: {selected_report['status']}\n\n💰 **Expense Details:**\n• **Vendor**: {expense_entry_data.vendor_description}\n• **Amount**: ${expense_entry_data.transaction_amount:.2f} {expense_entry_data.transaction_currency_code}\n• **Date**: {expense_entry_data.transaction_date}\n• **Description**: {expense_entry_data.description}\n\n🎉 Your expense has been successfully added to the report!"
+                            }
+                            
+                        except Exception as e:
+                            print(f"Expense entry creation error: {str(e)}")  # Debug log
+                            conversation_state = "initial"
+                            current_expense_data = None
+                            
+                            return {
+                                "success": False,
+                                "message": f"✅ **Report selected successfully!**\n\n📊 **Selected Report:**\n• Name: {selected_report['name']}\n• Purpose: {selected_report['purpose']}\n• Current Total: {selected_report['total']} {selected_report['currency']}\n• Status: {selected_report['status']}\n\n❌ **Note**: There was an issue adding the expense entry to SAP Concur: {str(e)}\n\nThe report selection was successful, but you may need to manually add the expense details in SAP Concur."
+                            }
+                    else:
+                        conversation_state = "initial"
+                        return {
+                            "success": True,
+                            "message": f"✅ **Report selected!**\n\n📊 **Selected Report:**\n• Name: {selected_report['name']}\n• Purpose: {selected_report['purpose']}\n• Current Total: {selected_report['total']} {selected_report['currency']}\n• Status: {selected_report['status']}\n\n🎉 Your report is ready for expenses!"
+                        }
                 else:
                     return {
                         "success": False,
@@ -615,7 +872,11 @@ async def chat_endpoint(message: ChatMessage):
     
     except Exception as e:
         print(f"Chat error: {str(e)}")  # Debug log
+        # Clear all state on error
         conversation_state = "initial"
+        current_expense_data = None
+        pending_report_data = None
+        pending_expense_data = None
         return {
             "success": False,
             "message": f"❌ Something went wrong: {str(e)}\n\nPlease try again or upload a new receipt to start over."
@@ -699,23 +960,40 @@ async def create_report(report_data: ReportCreateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/tax-compliance")
-async def process_tax_compliance(compliance_data: TaxComplianceRequest):
-    """Process tax compliance and create report"""
+@app.post("/api/expense-entry")
+async def create_expense_entry_endpoint(expense_data: ExpenseEntryRequest):
+    """Create new expense entry"""
     try:
-        report_request = ReportCreateRequest(
-            name=compliance_data.report_name,
-            business_purpose=compliance_data.business_purpose,
-            comment=compliance_data.comment,
-            gift_policy_compliance=compliance_data.gift_policy_compliance,
-            irs_tax_policy_compliance=compliance_data.irs_tax_policy_compliance
-        )
-        
-        created_report = await create_sap_report(report_request)
+        created_entry = await create_expense_entry(expense_data)
         return {
             "success": True,
-            "message": "Report created successfully with tax compliance!",
-            "report": created_report
+            "message": "Expense entry created successfully!",
+            "entry": created_entry
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/add-expense-to-report")
+async def add_expense_to_report(report_id: str, expense_data: ExpenseData):
+    """Add expense data to existing report"""
+    try:
+        # Map expense data to entry format
+        expense_entry_data = map_expense_data_to_entry(expense_data, report_id)
+        
+        # Create the expense entry
+        created_entry = await create_expense_entry(expense_entry_data)
+        
+        return {
+            "success": True,
+            "message": "Expense added to report successfully!",
+            "entry": created_entry,
+            "expense_details": {
+                "vendor": expense_entry_data.vendor_description,
+                "amount": expense_entry_data.transaction_amount,
+                "currency": expense_entry_data.transaction_currency_code,
+                "date": expense_entry_data.transaction_date,
+                "description": expense_entry_data.description
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -742,7 +1020,8 @@ async def root():
             "chat": "POST /api/chat",
             "get_reports": "GET /api/reports",
             "create_report": "POST /api/reports",
-            "tax_compliance": "POST /api/tax-compliance",
+            "create_expense_entry": "POST /api/expense-entry",
+            "add_expense_to_report": "POST /api/add-expense-to-report",
             "health": "GET /api/health"
         }
     }

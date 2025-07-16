@@ -498,7 +498,7 @@ body {
 }
 
 /* ========================================
-   TAX COMPLIANCE UI - NEW SECTION
+   TAX COMPLIANCE UI
    ======================================== */
 
 .tax-compliance-container {
@@ -1265,6 +1265,308 @@ body {
 }
 
 /* ========================================
+   EDITABLE EXPENSE FIELDS STYLES - NEW SECTION
+   ======================================== */
+
+/* Editable Expense Container */
+.editable-expense-container {
+	background: linear-gradient(135deg, #f8f9fa 0%, #e8f4fd 100%);
+	border: 2px solid #bbdefb;
+	border-radius: 16px;
+	padding: 1.5rem;
+	margin-top: 1rem;
+	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+	position: relative;
+	overflow: hidden;
+}
+
+.editable-expense-container::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 4px;
+	background: linear-gradient(90deg, #ff9800, #ffc107, #ffeb3b);
+}
+
+/* Edit Header */
+.edit-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 1.5rem;
+	padding-bottom: 1rem;
+	border-bottom: 2px solid #e3f2fd;
+}
+
+.edit-title {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.edit-title h4 {
+	margin: 0;
+	color: #f57c00;
+	font-size: 1.2rem;
+	font-weight: 700;
+}
+
+.edit-icon {
+	font-size: 1.3rem;
+}
+
+.edit-status {
+	display: flex;
+	align-items: center;
+}
+
+.changes-indicator {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.85rem;
+	color: #f57c00;
+	font-weight: 600;
+	background: rgba(255, 193, 7, 0.1);
+	padding: 0.25rem 0.75rem;
+	border-radius: 20px;
+	border: 1px solid #ffc107;
+}
+
+.changes-dot {
+	width: 8px;
+	height: 8px;
+	background: #ff9800;
+	border-radius: 50%;
+	animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+	0% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+/* Edit Fields Grid */
+.edit-fields-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+}
+
+.edit-field-item {
+	background: white;
+	border: 2px solid #e8f4fd;
+	border-radius: 12px;
+	padding: 1rem;
+	transition: all 0.3s ease;
+	position: relative;
+}
+
+.edit-field-item:hover {
+	border-color: #bbdefb;
+	box-shadow: 0 2px 8px rgba(25, 118, 210, 0.1);
+}
+
+.edit-field-item.has-error {
+	border-color: #f44336;
+	background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+}
+
+/* Edit Field Labels */
+.edit-field-label {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+	font-weight: 600;
+	color: #37474f;
+	font-size: 0.9rem;
+}
+
+.required-indicator {
+	color: #f44336;
+	font-weight: bold;
+	margin-left: 0.25rem;
+}
+
+/* Edit Field Input Container */
+.edit-field-input-container {
+	position: relative;
+}
+
+/* Edit Field Inputs */
+.edit-field-input {
+	width: 100%;
+	padding: 0.75rem;
+	border: 2px solid #e0e0e0;
+	border-radius: 8px;
+	font-size: 0.9rem;
+	font-family: inherit;
+	transition: all 0.2s ease;
+	background: #fafafa;
+	color: #333;
+	min-height: 44px;
+	box-sizing: border-box;
+}
+
+.edit-field-input:focus {
+	outline: none;
+	border-color: #1976d2;
+	background: white;
+	box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+.edit-field-input.error {
+	border-color: #f44336;
+	background: #ffebee;
+}
+
+.edit-field-input.error:focus {
+	border-color: #f44336;
+	box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.1);
+}
+
+/* Specific input types */
+.edit-field-input[type="number"] {
+	text-align: right;
+}
+
+.edit-field-input[type="date"] {
+	cursor: pointer;
+}
+
+select.edit-field-input {
+	cursor: pointer;
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+	background-repeat: no-repeat;
+	background-position: right 0.75rem center;
+	background-size: 1rem;
+	padding-right: 2.5rem;
+	appearance: none;
+}
+
+textarea.edit-field-input {
+	resize: vertical;
+	min-height: 80px;
+	line-height: 1.4;
+}
+
+/* Field Errors */
+.field-error {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+	color: #d32f2f;
+	font-size: 0.8rem;
+	font-weight: 500;
+}
+
+.error-icon {
+	font-size: 0.9rem;
+}
+
+/* Edit Actions */
+.edit-actions {
+	display: flex;
+	gap: 1rem;
+	justify-content: center;
+	padding-top: 1rem;
+	border-top: 1px solid #e3f2fd;
+}
+
+.edit-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem 1.5rem;
+	border: none;
+	border-radius: 8px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 0.9rem;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	min-width: 140px;
+	justify-content: center;
+}
+
+.edit-btn.primary {
+	background: linear-gradient(135deg, #4caf50, #66bb6a);
+	color: white;
+}
+
+.edit-btn.primary:hover:not(:disabled) {
+	background: linear-gradient(135deg, #388e3c, #4caf50);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.edit-btn.secondary {
+	background: linear-gradient(135deg, #ffffff, #f5f5f5);
+	color: #666;
+	border: 2px solid #e0e0e0;
+}
+
+.edit-btn.secondary:hover:not(:disabled) {
+	background: linear-gradient(135deg, #f5f5f5, #eeeeee);
+	border-color: #bbb;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.edit-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* Edit Expense Button in Header */
+.expense-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+.edit-expense-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	background: linear-gradient(135deg, #1976d2, #42a5f5);
+	color: white;
+	border: none;
+	border-radius: 8px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 0.85rem;
+	box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+}
+
+.edit-expense-btn:hover:not(:disabled) {
+	background: linear-gradient(135deg, #0d47a1, #1976d2);
+	transform: translateY(-1px);
+	box-shadow: 0 3px 6px rgba(25, 118, 210, 0.3);
+}
+
+.edit-expense-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* ========================================
    IMAGE MESSAGES
    ======================================== */
 
@@ -1471,6 +1773,9 @@ body {
 	.chat-input-container {
 		padding: 1rem 1.5rem;
 	}
+	.edit-fields-grid {
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	}
 }
 
 /* Mobile */
@@ -1617,6 +1922,47 @@ body {
 	.policy-description {
 		font-size: 0.8rem;
 	}
+
+	/* Mobile Edit Fields */
+	.editable-expense-container {
+		padding: 1rem;
+		margin-top: 0.75rem;
+	}
+
+	.edit-fields-grid {
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+	}
+
+	.edit-field-item {
+		padding: 0.75rem;
+	}
+
+	.edit-actions {
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.edit-btn {
+		width: 100%;
+		min-width: auto;
+	}
+
+	.edit-header {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.expense-header-actions {
+		width: 100%;
+		justify-content: space-between;
+	}
+
+	.edit-expense-btn {
+		padding: 0.6rem 0.8rem;
+		font-size: 0.8rem;
+	}
 }
 
 /* ========================================
@@ -1629,12 +1975,37 @@ body {
 .user-profile:focus,
 .dropdown-toggle:focus,
 .compliance-btn:focus,
-.checkbox-label:focus-within {
+.edit-btn:focus,
+.edit-expense-btn:focus,
+.edit-field-input:focus {
 	outline: 2px solid #1976d2;
 	outline-offset: 2px;
 }
 
-.checkbox-input:focus + .checkbox-custom {
-	outline: 2px solid #1976d2;
-	outline-offset: 2px;
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	.edit-field-item,
+	.expense-field-item {
+		border-width: 3px;
+	}
+
+	.edit-field-input {
+		border-width: 3px;
+	}
+
+	.changes-indicator {
+		border-width: 2px;
+	}
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+	.edit-field-item,
+	.edit-btn,
+	.edit-expense-btn,
+	.changes-dot,
+	.expense-field-item {
+		transition: none;
+		animation: none;
+	}
 }

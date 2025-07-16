@@ -1,9 +1,300 @@
-// App.jsx - Updated Version with Tax Compliance UI
+// App.jsx - Enhanced Version with Editable Expense Fields
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./App.css";
 
 // Constants
 const API_BASE_URL = "http://localhost:8000";
+
+// Predefined options for dropdowns
+const EXPENSE_TYPES = [
+	"Meals",
+	"Travel",
+	"Accommodation",
+	"Transportation",
+	"Office Supplies",
+	"Software",
+	"Entertainment",
+	"Fuel",
+	"Parking",
+	"Other",
+];
+
+const PAYMENT_TYPES = [
+	"Credit Card",
+	"Cash",
+	"Bank Transfer",
+	"Check",
+	"Other",
+];
+
+const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY"];
+
+// Editable Expense Fields Component
+const EditableExpenseFields = ({
+	expenseData,
+	onSave,
+	onCancel,
+	isLoading = false,
+}) => {
+	const [editedData, setEditedData] = useState(expenseData || {});
+	const [errors, setErrors] = useState({});
+	const [hasChanges, setHasChanges] = useState(false);
+
+	// Track changes
+	useEffect(() => {
+		const hasAnyChanges = Object.keys(editedData).some(
+			(key) => editedData[key] !== expenseData[key]
+		);
+		setHasChanges(hasAnyChanges);
+	}, [editedData, expenseData]);
+
+	// Field update handler
+	const handleFieldChange = (field, value) => {
+		setEditedData((prev) => ({ ...prev, [field]: value }));
+
+		// Clear error for this field when user starts typing
+		if (errors[field]) {
+			setErrors((prev) => ({ ...prev, [field]: null }));
+		}
+	};
+
+	// Validation
+	const validateFields = () => {
+		const newErrors = {};
+
+		if (!editedData.vendor?.trim()) {
+			newErrors.vendor = "Vendor is required";
+		}
+
+		if (!editedData.amount || editedData.amount <= 0) {
+			newErrors.amount = "Valid amount is required";
+		}
+
+		if (!editedData.transaction_date) {
+			newErrors.transaction_date = "Date is required";
+		}
+
+		if (!editedData.expense_type) {
+			newErrors.expense_type = "Expense type is required";
+		}
+
+		setErrors(newErrors);
+		return Object.keys(newErrors).length === 0;
+	};
+
+	// Save handler
+	const handleSave = () => {
+		if (validateFields()) {
+			onSave(editedData);
+		}
+	};
+
+	// Cancel handler
+	const handleCancel = () => {
+		setEditedData(expenseData);
+		setErrors({});
+		setHasChanges(false);
+		onCancel();
+	};
+
+	// Format field name for display
+	const formatFieldName = (fieldName) => {
+		return fieldName
+			.replace(/_/g, " ")
+			.replace(/\b\w/g, (l) => l.toUpperCase());
+	};
+
+	// Get field icon
+	const getFieldIcon = (field) => {
+		const icons = {
+			expense_type: "🏷️",
+			transaction_date: "📅",
+			business_purpose: "🎯",
+			vendor: "🏪",
+			city: "🏙️",
+			country: "🌍",
+			payment_type: "💳",
+			amount: "💰",
+			currency: "💱",
+			comment: "💬",
+		};
+		return icons[field] || "📝";
+	};
+
+	// Render field input based on type
+	const renderFieldInput = (field, value) => {
+		const commonProps = {
+			value: value || "",
+			onChange: (e) => handleFieldChange(field, e.target.value),
+			className: `edit-field-input ${errors[field] ? "error" : ""}`,
+		};
+
+		switch (field) {
+			case "expense_type":
+				return (
+					<select {...commonProps} value={value || ""}>
+						<option value="">Select type...</option>
+						{EXPENSE_TYPES.map((type) => (
+							<option key={type} value={type}>
+								{type}
+							</option>
+						))}
+					</select>
+				);
+
+			case "payment_type":
+				return (
+					<select {...commonProps} value={value || ""}>
+						<option value="">Select payment...</option>
+						{PAYMENT_TYPES.map((type) => (
+							<option key={type} value={type}>
+								{type}
+							</option>
+						))}
+					</select>
+				);
+
+			case "currency":
+				return (
+					<select {...commonProps} value={value || "USD"}>
+						{CURRENCIES.map((curr) => (
+							<option key={curr} value={curr}>
+								{curr}
+							</option>
+						))}
+					</select>
+				);
+
+			case "amount":
+				return (
+					<input
+						{...commonProps}
+						type="number"
+						step="0.01"
+						min="0"
+						placeholder="0.00"
+						onChange={(e) =>
+							handleFieldChange(
+								field,
+								parseFloat(e.target.value) || 0
+							)
+						}
+					/>
+				);
+
+			case "transaction_date":
+				return (
+					<input
+						{...commonProps}
+						type="date"
+						max={new Date().toISOString().split("T")[0]}
+					/>
+				);
+
+			case "business_purpose":
+			case "comment":
+				return (
+					<textarea
+						{...commonProps}
+						rows="3"
+						placeholder={`Enter ${formatFieldName(
+							field
+						).toLowerCase()}...`}
+					/>
+				);
+
+			default:
+				return (
+					<input
+						{...commonProps}
+						type="text"
+						placeholder={`Enter ${formatFieldName(
+							field
+						).toLowerCase()}...`}
+					/>
+				);
+		}
+	};
+
+	return (
+		<div className="editable-expense-container">
+			<div className="edit-header">
+				<div className="edit-title">
+					<span className="edit-icon">✏️</span>
+					<h4>Edit Expense Details</h4>
+				</div>
+				<div className="edit-status">
+					{hasChanges && (
+						<span className="changes-indicator">
+							<span className="changes-dot"></span>
+							Unsaved changes
+						</span>
+					)}
+				</div>
+			</div>
+
+			<div className="edit-fields-grid">
+				{Object.entries(editedData).map(([field, value]) => (
+					<div
+						key={field}
+						className={`edit-field-item ${
+							errors[field] ? "has-error" : ""
+						}`}
+					>
+						<div className="edit-field-label">
+							<span className="field-icon">
+								{getFieldIcon(field)}
+							</span>
+							<span className="field-label-text">
+								{formatFieldName(field)}
+								{[
+									"vendor",
+									"amount",
+									"transaction_date",
+									"expense_type",
+								].includes(field) && (
+									<span className="required-indicator">
+										*
+									</span>
+								)}
+							</span>
+						</div>
+
+						<div className="edit-field-input-container">
+							{renderFieldInput(field, value)}
+							{errors[field] && (
+								<div className="field-error">
+									<span className="error-icon">⚠️</span>
+									{errors[field]}
+								</div>
+							)}
+						</div>
+					</div>
+				))}
+			</div>
+
+			<div className="edit-actions">
+				<button
+					onClick={handleCancel}
+					disabled={isLoading}
+					className="edit-btn secondary"
+				>
+					<span className="btn-icon">↩️</span>
+					Cancel
+				</button>
+
+				<button
+					onClick={handleSave}
+					disabled={isLoading || !hasChanges}
+					className="edit-btn primary"
+				>
+					<span className="btn-icon">💾</span>
+					{isLoading ? "Saving..." : "Save Changes"}
+				</button>
+			</div>
+		</div>
+	);
+};
 
 // Main App Component
 function App() {
@@ -16,6 +307,7 @@ function App() {
 	const [dragActive, setDragActive] = useState(false);
 	const [currentExpense, setCurrentExpense] = useState(null);
 	const [isMobile, setIsMobile] = useState(false);
+	const [editingExpense, setEditingExpense] = useState(false); // New state for edit mode
 
 	// ========================================
 	// REFS
@@ -81,6 +373,51 @@ function App() {
 		}
 	}, []);
 
+	// ========================================
+	// EXPENSE EDITING HANDLERS
+	// ========================================
+
+	const handleEditExpense = useCallback(() => {
+		setEditingExpense(true);
+	}, []);
+
+	const handleSaveExpenseChanges = useCallback((updatedExpenseData) => {
+		setCurrentExpense(updatedExpenseData);
+		setEditingExpense(false);
+
+		// Update the expense data in the most recent expense message
+		setMessages((prevMessages) => {
+			return prevMessages.map((message) => {
+				if (message.type === "expense_data" && message.expense_data) {
+					return {
+						...message,
+						expense_data: updatedExpenseData,
+					};
+				}
+				return message;
+			});
+		});
+
+		// Add a confirmation message
+		const updateMessage = {
+			id: `update-${Date.now()}`,
+			type: "assistant",
+			content:
+				"✅ **Expense details updated successfully!**\n\nYour changes have been saved. What would you like to do next?\n\n**1** - Create a new expense report\n**2** - Add to an existing report",
+			timestamp: new Date().toISOString(),
+		};
+
+		setMessages((prevMessages) => [...prevMessages, updateMessage]);
+	}, []);
+
+	const handleCancelExpenseEdit = useCallback(() => {
+		setEditingExpense(false);
+	}, []);
+
+	// ========================================
+	// EXISTING FUNCTIONS (keeping them the same)
+	// ========================================
+
 	const sendMessage = useCallback(async () => {
 		if (!inputMessage.trim() || isLoading) return;
 
@@ -141,51 +478,6 @@ function App() {
 			setIsLoading(false);
 		}
 	}, [inputMessage, isLoading, makeApiCall]);
-
-	const fetchReports = useCallback(async () => {
-		if (isLoading) return;
-
-		setIsLoading(true);
-
-		// Add user message for fetching reports
-		const userMessage = {
-			id: `user-${Date.now()}`,
-			type: "user",
-			content: "show my reports",
-			timestamp: new Date().toISOString(),
-		};
-
-		setMessages((prevMessages) => [...prevMessages, userMessage]);
-
-		try {
-			const data = await makeApiCall("/api/reports/formatted");
-
-			// Add assistant response with reports
-			const assistantMessage = {
-				id: `assistant-${Date.now()}`,
-				type: "reports",
-				content: data.message,
-				timestamp: new Date().toISOString(),
-				reports: data.reports,
-			};
-
-			setMessages((prevMessages) => [...prevMessages, assistantMessage]);
-		} catch (error) {
-			console.error("Failed to fetch reports:", error);
-
-			// On error, add an error message
-			const errorMessage = {
-				id: `error-${Date.now()}`,
-				type: "assistant",
-				content: `❌ Failed to fetch reports: ${error.message}. Please try again.`,
-				timestamp: new Date().toISOString(),
-			};
-
-			setMessages((prevMessages) => [...prevMessages, errorMessage]);
-		} finally {
-			setIsLoading(false);
-		}
-	}, [isLoading, makeApiCall]);
 
 	const sendQuickCommand = useCallback(
 		(command) => {
@@ -775,7 +1067,7 @@ function App() {
 													</div>
 												)}
 
-											{/* Expense Data Message */}
+											{/* Expense Data Message with Edit Capability */}
 											{message.type === "expense_data" &&
 												message.expense_data && (
 													<div className="expense-data-message">
@@ -784,171 +1076,212 @@ function App() {
 																message.content
 															)}
 														</div>
-														<div className="expense-data-card">
-															<div className="expense-header">
-																<h4>
-																	🧾 Extracted
-																	Expense Data
-																</h4>
-																<div className="extraction-status">
-																	<span className="status-badge success">
-																		✓
-																		Extracted
-																		Successfully
-																	</span>
-																</div>
-															</div>
 
-															<div className="expense-fields-grid">
-																{Object.entries(
+														{/* Show either editable fields or read-only display */}
+														{editingExpense ? (
+															<EditableExpenseFields
+																expenseData={
 																	message.expense_data
-																).map(
-																	([
-																		key,
-																		value,
-																	]) => {
-																		const displayValue =
-																			formatFieldValue(
-																				value
-																			);
-																		const isImportant =
-																			[
-																				"amount",
-																				"vendor",
-																				"transaction_date",
-																			].includes(
-																				key
-																			);
+																}
+																onSave={
+																	handleSaveExpenseChanges
+																}
+																onCancel={
+																	handleCancelExpenseEdit
+																}
+																isLoading={
+																	isLoading
+																}
+															/>
+														) : (
+															<div className="expense-data-card">
+																<div className="expense-header">
+																	<h4>
+																		🧾
+																		Extracted
+																		Expense
+																		Data
+																	</h4>
+																	<div className="expense-header-actions">
+																		<div className="extraction-status">
+																			<span className="status-badge success">
+																				✓
+																				Extracted
+																				Successfully
+																			</span>
+																		</div>
+																		<button
+																			onClick={
+																				handleEditExpense
+																			}
+																			disabled={
+																				isLoading
+																			}
+																			className="edit-expense-btn"
+																			title="Edit expense details"
+																		>
+																			<span className="btn-icon">
+																				✏️
+																			</span>
+																			Edit
+																		</button>
+																	</div>
+																</div>
 
-																		return (
-																			<div
-																				key={
+																<div className="expense-fields-grid">
+																	{Object.entries(
+																		message.expense_data
+																	).map(
+																		([
+																			key,
+																			value,
+																		]) => {
+																			const displayValue =
+																				formatFieldValue(
+																					value
+																				);
+																			const isImportant =
+																				[
+																					"amount",
+																					"vendor",
+																					"transaction_date",
+                                                                                    "expense_type",
+                                                                                    "business_purpose",
+                                                                                    "meals"
+																				].includes(
 																					key
-																				}
-																				className={`expense-field-item ${
-																					isImportant
-																						? "important"
-																						: ""
-																				}`}
-																			>
-																				<div className="field-label-container">
-																					<span className="field-icon">
-																						{key ===
-																							"expense_type" &&
-																							"🏷️"}
-																						{key ===
-																							"transaction_date" &&
-																							"📅"}
-																						{key ===
-																							"business_purpose" &&
-																							"🎯"}
-																						{key ===
-																							"vendor" &&
-																							"🏪"}
-																						{key ===
-																							"city" &&
-																							"🏙️"}
-																						{key ===
-																							"country" &&
-																							"🌍"}
-																						{key ===
-																							"payment_type" &&
-																							"💳"}
-																						{key ===
-																							"amount" &&
-																							"💰"}
-																						{key ===
-																							"currency" &&
-																							"💱"}
-																						{key ===
-																							"comment" &&
-																							"💬"}
-																					</span>
-																					<span className="field-label-text">
-																						{formatFieldName(
-																							key
-																						)}
-																					</span>
-																				</div>
-																				<div className="field-value-container">
-																					<span className="field-value-text">
-																						{
-																							displayValue
-																						}
-																					</span>
-																					{value && (
-																						<span className="field-check">
-																							✓
+																				);
+
+																			return (
+																				<div
+																					key={
+																						key
+																					}
+																					className={`expense-field-item ${
+																						isImportant
+																							? "important"
+																							: ""
+																					}`}
+																				>
+																					<div className="field-label-container">
+																						<span className="field-icon">
+																							{key ===
+																								"expense_type" &&
+																								"🏷️"}
+																							{key ===
+																								"transaction_date" &&
+																								"📅"}
+																							{key ===
+																								"business_purpose" &&
+																								"🎯"}
+																							{key ===
+																								"vendor" &&
+																								"🏪"}
+																							{key ===
+																								"city" &&
+																								"🏙️"}
+																							{key ===
+																								"country" &&
+																								"🌍"}
+																							{key ===
+																								"payment_type" &&
+																								"💳"}
+																							{key ===
+																								"amount" &&
+																								"💰"}
+																							{key ===
+																								"currency" &&
+																								"💱"}
+																							{key ===
+																								"comment" &&
+																								"💬"}
 																						</span>
-																					)}
+																						<span className="field-label-text">
+																							{formatFieldName(
+																								key
+																							)}
+																						</span>
+																					</div>
+																					<div className="field-value-container">
+																						<span className="field-value-text">
+																							{
+																								displayValue
+																							}
+																						</span>
+																						{value && (
+																							<span className="field-check">
+																								✓
+																							</span>
+																						)}
+																					</div>
 																				</div>
-																			</div>
-																		);
-																	}
+																			);
+																		}
+																	)}
+																</div>
+
+																{message.next_action && (
+																	<div className="next-action-container">
+																		<div className="action-header">
+																			<span className="action-icon">
+																				🚀
+																			</span>
+																			<span className="action-title">
+																				What's
+																				Next?
+																			</span>
+																		</div>
+																		<div className="action-content">
+																			{renderFormattedMessage(
+																				message.next_action
+																			)}
+																		</div>
+																		<div className="quick-action-buttons">
+																			<button
+																				onClick={() =>
+																					sendQuickCommand(
+																						"1"
+																					)
+																				}
+																				disabled={
+																					isLoading
+																				}
+																				className="action-button primary"
+																			>
+																				<span className="btn-icon">
+																					✨
+																				</span>
+																				<span>
+																					Create
+																					New
+																					Report
+																				</span>
+																			</button>
+																			<button
+																				onClick={() =>
+																					sendQuickCommand(
+																						"2"
+																					)
+																				}
+																				disabled={
+																					isLoading
+																				}
+																				className="action-button secondary"
+																			>
+																				<span className="btn-icon">
+																					📋
+																				</span>
+																				<span>
+																					Add
+																					to
+																					Existing
+																				</span>
+																			</button>
+																		</div>
+																	</div>
 																)}
 															</div>
-
-															{message.next_action && (
-																<div className="next-action-container">
-																	<div className="action-header">
-																		<span className="action-icon">
-																			🚀
-																		</span>
-																		<span className="action-title">
-																			What's
-																			Next?
-																		</span>
-																	</div>
-																	<div className="action-content">
-																		{renderFormattedMessage(
-																			message.next_action
-																		)}
-																	</div>
-																	<div className="quick-action-buttons">
-																		<button
-																			onClick={() =>
-																				sendQuickCommand(
-																					"1"
-																				)
-																			}
-																			disabled={
-																				isLoading
-																			}
-																			className="action-button primary"
-																		>
-																			<span className="btn-icon">
-																				✨
-																			</span>
-																			<span>
-																				Create
-																				New
-																				Report
-																			</span>
-																		</button>
-																		<button
-																			onClick={() =>
-																				sendQuickCommand(
-																					"2"
-																				)
-																			}
-																			disabled={
-																				isLoading
-																			}
-																			className="action-button secondary"
-																		>
-																			<span className="btn-icon">
-																				📋
-																			</span>
-																			<span>
-																				Add
-																				to
-																				Existing
-																			</span>
-																		</button>
-																	</div>
-																</div>
-															)}
-														</div>
+														)}
 													</div>
 												)}
 
@@ -963,7 +1296,7 @@ function App() {
 															message.content
 														)}
 
-														{/* Tax Compliance UI - NEW */}
+														{/* Tax Compliance UI */}
 														{message.type ===
 															"assistant" &&
 															message.needs_tax_compliance && (

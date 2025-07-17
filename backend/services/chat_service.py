@@ -1,43 +1,74 @@
+
 import re
 from typing import Optional, Dict, List, Any
 from models.expense import ExpenseData
 
 class ChatService:
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ChatService, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
-        # Global state for conversation management
-        self.conversation_state = "initial"
-        self.current_expense_data: Optional[ExpenseData] = None
-        self.available_reports: List[Dict] = []
-        self.pending_report_data: Optional[Dict] = None
-        self.pending_expense_data: Optional[ExpenseData] = None
+        if not ChatService._initialized:
+            # Initialize state only once
+            self.conversation_state = "initial"
+            self.current_expense_data: Optional[ExpenseData] = None
+            self.available_reports: List[Dict] = []
+            self.pending_report_data: Optional[Dict] = None
+            self.pending_expense_data: Optional[ExpenseData] = None
+            ChatService._initialized = True
+            print("🏗️ ChatService singleton initialized")
     
     def update_conversation_state(self, state: str):
         """Update the conversation state"""
+        print(f"🔄 State transition: {self.conversation_state} → {state}")
         self.conversation_state = state
     
     def set_current_expense(self, expense_data: ExpenseData):
         """Set current expense data"""
         self.current_expense_data = expense_data
+        print(f"💰 Expense data set: {expense_data.vendor if expense_data else 'None'} - ${expense_data.amount if expense_data else 0}")
     
     def set_pending_expense(self, expense_data: ExpenseData):
         """Set pending expense data"""
         self.pending_expense_data = expense_data
+        print(f"⏳ Pending expense data set: {expense_data.vendor if expense_data else 'None'}")
     
     def set_available_reports(self, reports: List[Dict]):
         """Set available reports"""
         self.available_reports = reports
+        print(f"📋 Available reports set: {len(reports)} reports")
     
     def set_pending_report_data(self, report_data: Dict):
         """Set pending report data"""
         self.pending_report_data = report_data
+        print(f"📊 Pending report data set: {report_data.get('name', 'Unknown')}")
     
     def clear_state(self):
         """Clear all conversation state"""
+        print("🧹 Clearing all state")
         self.conversation_state = "initial"
         self.current_expense_data = None
         self.available_reports = []
         self.pending_report_data = None
         self.pending_expense_data = None
+    
+    def get_debug_info(self):
+        """Get debug information about current state"""
+        return {
+            "conversation_state": self.conversation_state,
+            "has_current_expense": bool(self.current_expense_data),
+            "current_expense_vendor": self.current_expense_data.vendor if self.current_expense_data else None,
+            "current_expense_amount": self.current_expense_data.amount if self.current_expense_data else None,
+            "has_pending_expense": bool(self.pending_expense_data),
+            "has_pending_report": bool(self.pending_report_data),
+            "num_available_reports": len(self.available_reports),
+            "instance_id": id(self)
+        }
     
     def parse_report_details(self, message: str) -> Optional[Dict]:
         """Parse report details from user message with better flexibility"""

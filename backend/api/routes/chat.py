@@ -2,7 +2,10 @@ from fastapi import APIRouter, HTTPException
 from models.chat import ChatMessage
 from models.expense import ExpenseData
 from models.report import ReportCreateRequest
-from services import ChatService, SAPService, ExpenseService
+from services.shared_service import chat_service, sap_service, expense_service
+from services.chat_service import ChatService
+from services.sap_service import SAPService
+from services.expense_service import ExpenseService
 from typing import Dict, Any
 
 router = APIRouter(prefix="/api", tags=["chat"])

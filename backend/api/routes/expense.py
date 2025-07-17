@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from models.expense import ExpenseData, ExpenseEntryRequest
-from services import OpenAIService, SAPService, ExpenseService, ChatService
+from services.shared_service import OpenAIService, SAPService, ExpenseService, ChatService
 import base64
 
 router = APIRouter(prefix="/api", tags=["expense"])

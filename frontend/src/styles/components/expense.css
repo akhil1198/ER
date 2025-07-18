@@ -1,0 +1,13 @@
+.expense-data-card {
+	background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+	border: 2px solid var(--primary-light);
+	border-radius: var(--border-radius-large);
+	padding: var(--spacing-lg);
+	margin-top: var(--spacing-md);
+	box-shadow: var(--shadow-md);
+	width: 100%;
+	overflow: hidden;
+	position: relative;
+}
+
+/* Rest of expense styles... */

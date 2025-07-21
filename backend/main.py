@@ -25,7 +25,7 @@ app.include_router(api_router)
 @app.get("/")
 async def root():
     return {
-        "message": "Modular Expense Processing API",
+        "message": "Expense Reporting API",
         "version": "2.0.0",
         "status": "ready",
         "docs": "/docs",

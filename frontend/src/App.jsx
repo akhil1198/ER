@@ -1,3 +1,5 @@
+// frontend/src/App.jsx - Updated for dynamic expense types
+
 import React, { useState, useEffect } from "react";
 import "./App.css";
 
@@ -38,8 +40,10 @@ function App() {
 
 	const {
 		currentExpense,
+		currentExpenseType,
 		editingExpense,
 		updateExpenseData,
+		updateExpenseType,
 		startEditing,
 		stopEditing,
 		saveExpenseChanges,
@@ -88,16 +92,24 @@ function App() {
 		try {
 			const data = await uploadFile(file);
 
-			// Update current expense data
+			// Update current expense data with enhanced information
 			updateExpenseData(data.expense_data);
+			if (data.expense_type_info) {
+				updateExpenseType(
+					data.expense_type_info.id,
+					data.expense_type_info
+				);
+			}
 
-			// Add processing response
+			// Add processing response with enhanced data
 			const responseMessage = {
 				id: `response-${Date.now()}`,
 				type: "expense_data",
 				content: data.message,
 				timestamp: new Date().toISOString(),
 				expense_data: data.expense_data,
+				expense_type_info: data.expense_type_info,
+				validation_errors: data.validation_errors,
 				next_action: data.next_action,
 			};
 
@@ -137,32 +149,118 @@ function App() {
 		}
 	};
 
-	const handleSaveExpenseChanges = (updatedExpenseData) => {
-		saveExpenseChanges(updatedExpenseData);
+	const handleSaveExpenseChanges = async (updatedExpenseData) => {
+		try {
+			// Save the changes
+			saveExpenseChanges(updatedExpenseData);
 
-		// Update the expense data in the most recent expense message
-		setMessages((prevMessages) => {
-			return prevMessages.map((message) => {
-				if (message.type === "expense_data" && message.expense_data) {
-					return {
-						...message,
-						expense_data: updatedExpenseData,
-					};
-				}
-				return message;
+			// Update the expense data in the most recent expense message
+			setMessages((prevMessages) => {
+				return prevMessages.map((message) => {
+					if (
+						message.type === "expense_data" &&
+						message.expense_data
+					) {
+						return {
+							...message,
+							expense_data: updatedExpenseData,
+							// Clear validation errors after successful save
+							validation_errors: [],
+						};
+					}
+					return message;
+				});
 			});
-		});
 
-		// Add a confirmation message
-		const updateMessage = {
-			id: `update-${Date.now()}`,
-			type: "assistant",
-			content:
-				"✅ **Expense details updated successfully!**\n\nYour changes have been saved. What would you like to do next?\n\n**1** - Create a new expense report\n**2** - Add to an existing report",
-			timestamp: new Date().toISOString(),
-		};
+			// Add a confirmation message
+			const updateMessage = {
+				id: `update-${Date.now()}`,
+				type: "assistant",
+				content:
+					"✅ **Expense details updated successfully!**\n\nYour changes have been saved. What would you like to do next?\n\n**1** - Create a new expense report\n**2** - Add to an existing report",
+				timestamp: new Date().toISOString(),
+			};
 
-		addMessage(updateMessage);
+			addMessage(updateMessage);
+		} catch (error) {
+			console.error("Failed to save expense changes:", error);
+
+			// Show error message
+			const errorMessage = {
+				id: `error-${Date.now()}`,
+				type: "assistant",
+				content: `❌ Failed to save changes: ${error.message}. Please try again.`,
+				timestamp: new Date().toISOString(),
+			};
+
+			addMessage(errorMessage);
+		}
+	};
+
+	const handleExpenseTypeChange = async (newExpenseTypeId) => {
+		try {
+			// Call API to re-map data to new expense type
+			const response = await fetch(
+				`/api/expense-types/${newExpenseTypeId}/map-data`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(currentExpense),
+				}
+			);
+
+			if (response.ok) {
+				const result = await response.json();
+
+				// Update expense data and type
+				updateExpenseData(result.mapped_data);
+				updateExpenseType(newExpenseTypeId, result.expense_type_config);
+
+				// Update the most recent expense message
+				setMessages((prevMessages) => {
+					return prevMessages.map((message) => {
+						if (
+							message.type === "expense_data" &&
+							message.expense_data
+						) {
+							return {
+								...message,
+								expense_data: result.mapped_data,
+								expense_type_info: {
+									...message.expense_type_info,
+									id: newExpenseTypeId,
+									...result.expense_type_config,
+								},
+								validation_errors:
+									result.validation_errors || [],
+							};
+						}
+						return message;
+					});
+				});
+
+				// Add confirmation message
+				const changeMessage = {
+					id: `type-change-${Date.now()}`,
+					type: "assistant",
+					content: `✅ **Expense type changed successfully!**\n\nYour data has been remapped to: **${result.expense_type_config.name}**\n\nPlease review the updated fields and continue with your expense submission.`,
+					timestamp: new Date().toISOString(),
+				};
+
+				addMessage(changeMessage);
+			}
+		} catch (error) {
+			console.error("Failed to change expense type:", error);
+
+			const errorMessage = {
+				id: `error-${Date.now()}`,
+				type: "assistant",
+				content: `❌ Failed to change expense type: ${error.message}. Please try again.`,
+				timestamp: new Date().toISOString(),
+			};
+
+			addMessage(errorMessage);
+		}
 	};
 
 	// ========================================
@@ -197,6 +295,8 @@ function App() {
 						editingExpense={editingExpense}
 						onSaveExpense={handleSaveExpenseChanges}
 						onCancelExpense={stopEditing}
+						onExpenseTypeChange={handleExpenseTypeChange}
+						currentExpenseType={currentExpenseType}
 					/>
 				</div>
 			</div>

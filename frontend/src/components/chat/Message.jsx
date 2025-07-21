@@ -1,10 +1,12 @@
+// frontend/src/components/chat/Message.jsx - Updated for dynamic expense types
+
 import React from "react";
 import MessageFormatter from "../ui/MessageFormatter";
 import ExpenseDataCard from "../expense/ExpenseDataCard";
-import EditableExpenseFields from "../expense/EditableExpenseFields";
 import TaxComplianceUI from "../expense/TaxComplianceUI";
 import QuickActions from "../ui/QuickActions";
 import TemplateButtons from "../ui/TemplateButtons";
+import ExpenseTypeSelector from "../expense/ExpenseTypeSelector";
 
 const Message = ({
 	message,
@@ -79,6 +81,11 @@ const Message = ({
 		onSendCommand(complianceMessage);
 	};
 
+	// Expense type change handler
+	const handleExpenseTypeChange = (newExpenseTypeId) => {
+		onSendCommand(`Change expense type to ${newExpenseTypeId}`);
+	};
+
 	return (
 		<div
 			className={`message ${isUser ? "user" : "assistant"} ${
@@ -98,14 +105,56 @@ const Message = ({
 					</div>
 				)}
 
-				{/* Expense Data Message */}
+				{/* Enhanced Expense Data Message with Dynamic Support */}
 				{message.type === "expense_data" && message.expense_data && (
 					<div className="expense-data-message">
 						<div className="expense-intro">
 							<MessageFormatter content={message.content} />
 						</div>
+
+						{/* Show expense type detection info if available */}
+						{message.expense_type_info &&
+							message.expense_type_info.confidence < 0.9 && (
+								<div className="expense-type-suggestion">
+									<div className="suggestion-header">
+										<span className="suggestion-icon">
+											🎯
+										</span>
+										<h5>Expense Type Detection</h5>
+									</div>
+									<div className="suggestion-content">
+										<p>
+											<strong>Detected:</strong>{" "}
+											{message.expense_type_info.name}
+										</p>
+										<p>
+											<strong>Confidence:</strong>{" "}
+											{(
+												message.expense_type_info
+													.confidence * 100
+											).toFixed(0)}
+											%
+										</p>
+										{message.expense_type_info.confidence <
+											0.8 && (
+											<div className="low-confidence-warning">
+												<span className="warning-icon">
+													⚠️
+												</span>
+												<span>
+													Low confidence - you may
+													want to verify the expense
+													type
+												</span>
+											</div>
+										)}
+									</div>
+								</div>
+							)}
+
 						<ExpenseDataCard
 							expenseData={message.expense_data}
+							expenseTypeInfo={message.expense_type_info}
 							nextAction={message.next_action}
 							onSendCommand={onSendCommand}
 							isLoading={isLoading}
@@ -113,7 +162,7 @@ const Message = ({
 							editingExpense={editingExpense}
 							onSaveExpense={onSaveExpense}
 							onCancelExpense={onCancelExpense}
-							EditableExpenseFields={EditableExpenseFields}
+							validationErrors={message.validation_errors || []}
 						/>
 					</div>
 				)}

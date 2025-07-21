@@ -1,3 +1,5 @@
+// frontend/src/services/api.js - Updated with dynamic expense type endpoints
+
 import { API_BASE_URL } from "../utils/constants";
 
 class ApiService {
@@ -36,6 +38,60 @@ class ApiService {
 		});
 	}
 
+	// NEW: Dynamic expense type endpoints
+	async getExpenseTypes(category = "meals") {
+		return this.makeApiCall(`/api/expense-types?category=${category}`);
+	}
+
+	async getExpenseTypeForm(expenseTypeId) {
+		return this.makeApiCall(`/api/expense-types/${expenseTypeId}/form`);
+	}
+
+	async getExpenseTypeFields(expenseTypeId) {
+		return this.makeApiCall(`/api/expense-types/${expenseTypeId}/fields`);
+	}
+
+	async mapDataToExpenseType(expenseTypeId, extractedData) {
+		return this.makeApiCall(
+			`/api/expense-types/${expenseTypeId}/map-data`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(extractedData),
+			}
+		);
+	}
+
+	async validateExpenseData(expenseTypeId, expenseData) {
+		return this.makeApiCall("/api/validate-expense-data", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				expense_type_id: expenseTypeId,
+				expense_data: expenseData,
+			}),
+		});
+	}
+
+	async createEnhancedExpenseEntry(expenseTypeId, expenseData, reportId) {
+		return this.makeApiCall("/api/expense-entry/enhanced", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				expense_type_id: expenseTypeId,
+				expense_data: expenseData,
+				report_id: reportId,
+			}),
+		});
+	}
+
+	// Existing endpoints
 	async getReports() {
 		return this.makeApiCall("/api/reports");
 	}

@@ -1,0 +1,449 @@
+/* ========================================
+   ENHANCED EXPENSE TYPE SELECTOR STYLES
+   ======================================== */
+
+.expense-type-selector-container {
+	background: linear-gradient(135deg, #fff8e1 0%, #fff3c4 100%);
+	border: 2px solid #ff9800;
+	border-radius: 16px;
+	padding: 1.5rem;
+	margin-top: 1rem;
+	box-shadow: 0 4px 12px rgba(255, 152, 0, 0.15);
+	position: relative;
+	overflow: hidden;
+}
+
+.expense-type-selector-container::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 4px;
+	background: linear-gradient(90deg, #ff9800, #ffc107, #ffeb3b);
+}
+
+.selector-header {
+	margin-bottom: 1.5rem;
+	text-align: center;
+}
+
+.selector-header h4 {
+	margin: 0 0 0.5rem 0;
+	color: #f57c00;
+	font-size: 1.2rem;
+	font-weight: 700;
+}
+
+.ai-suggestion {
+	background: rgba(255, 193, 7, 0.1);
+	border: 1px solid #ffc107;
+	border-radius: 8px;
+	padding: 0.75rem;
+	color: #f57c00;
+	font-size: 0.9rem;
+	margin: 0;
+}
+
+/* Field Groups */
+.field-group {
+	margin-bottom: 1.25rem;
+}
+
+.field-label {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+	font-weight: 600;
+	color: #37474f;
+	font-size: 0.9rem;
+}
+
+.field-icon {
+	font-size: 1.1rem;
+	width: 24px;
+	text-align: center;
+}
+
+/* Form Controls */
+.category-select,
+.type-select,
+.meal-type-select,
+.attendees-input,
+.client-input,
+.purpose-textarea {
+	width: 100%;
+	padding: 0.75rem;
+	border: 2px solid #e0e0e0;
+	border-radius: 8px;
+	font-size: 0.9rem;
+	font-family: inherit;
+	transition: all 0.2s ease;
+	background: white;
+	color: #333;
+	box-sizing: border-box;
+}
+
+.category-select:focus,
+.type-select:focus,
+.meal-type-select:focus,
+.attendees-input:focus,
+.client-input:focus,
+.purpose-textarea:focus {
+	outline: none;
+	border-color: #ff9800;
+	box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+}
+
+.attendees-input {
+	max-width: 120px;
+	text-align: center;
+}
+
+.purpose-textarea {
+	resize: vertical;
+	min-height: 80px;
+	line-height: 1.4;
+}
+
+/* Action Buttons */
+.selector-actions {
+	display: flex;
+	gap: 1rem;
+	justify-content: center;
+	margin-top: 1.5rem;
+	padding-top: 1rem;
+	border-top: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+.cancel-btn,
+.save-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem 1.5rem;
+	border: none;
+	border-radius: 8px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 0.9rem;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	min-width: 140px;
+	justify-content: center;
+}
+
+.cancel-btn {
+	background: linear-gradient(135deg, #ffffff, #f5f5f5);
+	color: #666;
+	border: 2px solid #e0e0e0;
+}
+
+.cancel-btn:hover:not(:disabled) {
+	background: linear-gradient(135deg, #f5f5f5, #eeeeee);
+	border-color: #bbb;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.save-btn.primary {
+	background: linear-gradient(135deg, #ff9800, #ffc107);
+	color: white;
+}
+
+.save-btn.primary:hover:not(:disabled) {
+	background: linear-gradient(135deg, #f57c00, #ff9800);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+}
+
+.save-btn:disabled,
+.cancel-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* Validation Hints */
+.validation-hints {
+	margin-top: 1rem;
+	padding-top: 1rem;
+	border-top: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+.hint-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+	font-size: 0.85rem;
+	color: #f57c00;
+}
+
+.hint-icon {
+	font-size: 1rem;
+	margin-top: 0.1rem;
+	flex-shrink: 0;
+}
+
+/* ========================================
+   ENHANCED EXPENSE DATA CARD STYLES
+   ======================================== */
+
+.ai-confidence {
+	display: flex;
+	align-items: center;
+}
+
+.confidence-badge {
+	background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+	color: #1976d2;
+	padding: 0.25rem 0.75rem;
+	border-radius: 20px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	border: 1px solid #90caf9;
+}
+
+.select-type-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	background: linear-gradient(135deg, #ff9800, #ffc107);
+	color: white;
+	border: none;
+	border-radius: 8px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 0.85rem;
+	box-shadow: 0 2px 4px rgba(255, 152, 0, 0.2);
+}
+
+.select-type-btn:hover:not(:disabled) {
+	background: linear-gradient(135deg, #f57c00, #ff9800);
+	transform: translateY(-1px);
+	box-shadow: 0 3px 6px rgba(255, 152, 0, 0.3);
+}
+
+.select-type-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* Current Selection Display */
+.current-selection {
+	background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+	border: 2px solid #4caf50;
+	border-radius: 12px;
+	padding: 1rem;
+	margin-bottom: 1.5rem;
+	position: relative;
+}
+
+.current-selection::before {
+	content: "✅";
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	background: #4caf50;
+	color: white;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.8rem;
+	font-weight: bold;
+}
+
+.selection-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.5rem;
+	padding: 0.25rem 0;
+	border-bottom: 1px solid rgba(76, 175, 80, 0.2);
+	font-size: 0.9rem;
+}
+
+.selection-item:last-child {
+	margin-bottom: 0;
+	border-bottom: none;
+}
+
+.selection-item strong {
+	color: #2e7d32;
+	font-weight: 600;
+	min-width: 120px;
+}
+
+/* Enhanced Action Areas */
+.expense-actions {
+	margin-top: 1.5rem;
+	padding-top: 1rem;
+	border-top: 2px solid #e3f2fd;
+}
+
+.next-steps {
+	text-align: center;
+}
+
+.next-steps p {
+	color: #2e7d32;
+	font-weight: 600;
+	margin-bottom: 1rem;
+	font-size: 1rem;
+}
+
+.action-buttons {
+	display: flex;
+	justify-content: center;
+	gap: 1rem;
+}
+
+.proceed-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem 1.5rem;
+	background: linear-gradient(135deg, #4caf50, #66bb6a);
+	color: white;
+	border: none;
+	border-radius: 8px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 0.9rem;
+	box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
+	min-width: 200px;
+	justify-content: center;
+}
+
+.proceed-btn:hover:not(:disabled) {
+	background: linear-gradient(135deg, #388e3c, #4caf50);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.type-selection-prompt {
+	text-align: center;
+	padding: 1rem;
+	background: rgba(255, 193, 7, 0.1);
+	border-radius: 8px;
+	border: 1px solid #ffc107;
+}
+
+.type-selection-prompt p {
+	color: #f57c00;
+	font-weight: 600;
+	margin-bottom: 1rem;
+	font-size: 0.95rem;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN FOR NEW COMPONENTS
+   ======================================== */
+
+@media (max-width: 767px) {
+	.expense-type-selector-container {
+		padding: 1rem;
+		margin-top: 0.75rem;
+	}
+
+	.selector-actions {
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.cancel-btn,
+	.save-btn {
+		width: 100%;
+		min-width: auto;
+	}
+
+	.current-selection {
+		padding: 0.75rem;
+	}
+
+	.selection-item {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+	}
+
+	.selection-item strong {
+		min-width: auto;
+	}
+
+	.action-buttons {
+		flex-direction: column;
+	}
+
+	.proceed-btn {
+		width: 100%;
+		min-width: auto;
+	}
+
+	.expense-header-actions {
+		flex-direction: column;
+		gap: 0.75rem;
+		align-items: stretch;
+	}
+
+	.ai-confidence {
+		justify-content: center;
+	}
+
+	.select-type-btn {
+		width: 100%;
+		justify-content: center;
+	}
+}
+
+/* ========================================
+   ACCESSIBILITY ENHANCEMENTS
+   ======================================== */
+
+.category-select:focus,
+.type-select:focus,
+.meal-type-select:focus,
+.attendees-input:focus,
+.client-input:focus,
+.purpose-textarea:focus,
+.select-type-btn:focus,
+.proceed-btn:focus {
+	outline: 2px solid #ff9800;
+	outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	.expense-type-selector-container,
+	.current-selection {
+		border-width: 3px;
+	}
+
+	.category-select,
+	.type-select,
+	.meal-type-select,
+	.attendees-input,
+	.client-input,
+	.purpose-textarea {
+		border-width: 3px;
+	}
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+	.select-type-btn,
+	.proceed-btn,
+	.cancel-btn,
+	.save-btn {
+		transition: none;
+	}
+}

@@ -165,9 +165,6 @@ def map_expense_data_to_entry(expense_data: ExpenseData, report_id: str) -> Expe
     payment_type_mapping = {
         "credit card": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
         "cash": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", # Using same for demo
-        "bank transfer": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-        "check": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-        "other": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY"
     }
     
     # Get expense type code

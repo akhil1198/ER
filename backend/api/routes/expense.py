@@ -64,7 +64,6 @@ async def process_receipt(file: UploadFile = File(...)):
             # Create a basic fallback response
             extraction_result = {
                 "suggested_expense_type": "meals_employee_in_town",
-                "confidence": 0.5,
                 "expense_data": {
                     "vendor": "Unknown Vendor",
                     "transaction_date": "2024-01-01",
@@ -151,7 +150,7 @@ async def process_receipt(file: UploadFile = File(...)):
         
         return {
             "success": True,
-            "message": f"🎉 **Receipt processed successfully!**\n\n📋 **Detected Expense Type**: {mapping_result.expense_type.name}\n🎯 **Confidence**: {confidence:.0%}\n\nI've intelligently mapped your receipt data to the appropriate fields.",
+            "message": f"🎉 **Receipt processed successfully!**\n\nI've intelligently mapped your receipt data to the appropriate fields.",
             "expense_data": mapping_result.mapped_data,
             "expense_type_info": {
                 "id": suggested_type,

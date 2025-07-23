@@ -20,14 +20,23 @@ const EXPENSE_TYPE_OPTIONS = {
 		"Meals with Client(s) - In Town",
 		"Meals with Client(s) - Out of Town",
 		"Meals with M&A Prospect(s)",
+		"Meals with Supplier(s)",
+		"Meals with Underwriter(s)",
+		"Other Entertainment - Client",
+		"Tickets - Client-Facing (skybox, sporting event, theater)",
+		"Tickets - Non Client-Facing (skybox, sporting event, theater)",
 	],
 	Transportation: [
-		"Airfare",
 		"Car Rental",
-		"Gas/Fuel",
-		"Parking",
-		"Taxi/Rideshare",
-		"Train",
+		"Car Rental Gas",
+		"Gas - Leased Car",
+		"Car Mileage",
+		"Monthly Parking",
+		"Other Ground Trans. (Shuttle, Bus, Ferry, Subway)",
+		"Rideshare (Uber, Lyft)",
+		"Train (LongTrip)",
+		"Parking/Tolls",
+		"Taxi/Limo",
 	],
 	Lodging: ["Hotel", "Lodging"],
 	"Office Supplies": ["Office Supplies", "Software"],
@@ -35,14 +44,7 @@ const EXPENSE_TYPE_OPTIONS = {
 	Other: ["Other Expense"],
 };
 
-const PAYMENT_TYPES = [
-	"Cash",
-	"Personal Credit Card",
-	"Corporate Credit Card",
-	"Bank Transfer",
-	"Check",
-	"Other",
-];
+const PAYMENT_TYPES = ["Cash", "Personal Credit Card"];
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY"];
 const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Other"];

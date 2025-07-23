@@ -57,11 +57,16 @@ class EnhancedExpenseService:
         ],
         "Transportation": [
             "Airfare",
-            "Car Rental", 
-            "Gas/Fuel",
-            "Parking",
-            "Taxi/Rideshare",
-            "Train"
+            "Car Rental"
+            "Car Rental Gas", 
+            "Gas - Leased Car", 
+            "Car Mileage", 
+            "Monthly Parking",
+            "Other Ground Trans. (Shuttle, Bus, Ferry, Subway)",
+            "Rideshare (Uber, Lyft)",
+            "Train (LongTrip)",
+            "Parking/Tolls",
+            "Taxi/Limo"
         ],
         "Lodging": [
             "Hotel",

@@ -73,17 +73,13 @@ MEAL_TYPE_OPTIONS = [
     {"value": "breakfast", "label": "Breakfast"},
     {"value": "lunch", "label": "Lunch"},
     {"value": "dinner", "label": "Dinner"},
-    {"value": "snacks", "label": "Snacks/Refreshments"},
     {"value": "other", "label": "Other"}
 ]
 
 # Payment Type Options
 PAYMENT_TYPE_OPTIONS = [
-    {"value": "corporate_card", "label": "Corporate Credit Card"},
     {"value": "personal_card", "label": "Personal Credit Card"},
     {"value": "cash", "label": "Cash"},
-    {"value": "bank_transfer", "label": "Bank Transfer"},
-    {"value": "check", "label": "Check"}
 ]
 
 # Currency Options

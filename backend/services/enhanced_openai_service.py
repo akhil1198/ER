@@ -40,6 +40,7 @@ class EnhancedOpenAIService:
         3. Extract vendor name accurately as it will populate the Vendor field
         4. Business purpose should be professional and descriptive
         5. Use null for fields that don't apply to this expense type
+        6. If the receipt uploaded is an Uber receipt, the type should be "Transportation" and the expense type should be "Taxi/Rideshare". The vendor should be "Uber" or "Lyft" based on the receipt.
         """
         
         try:

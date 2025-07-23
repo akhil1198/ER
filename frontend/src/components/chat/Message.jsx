@@ -112,46 +112,6 @@ const Message = ({
 							<MessageFormatter content={message.content} />
 						</div>
 
-						{/* Show expense type detection info if available */}
-						{message.expense_type_info &&
-							message.expense_type_info.confidence < 0.9 && (
-								<div className="expense-type-suggestion">
-									<div className="suggestion-header">
-										<span className="suggestion-icon">
-											🎯
-										</span>
-										<h5>Expense Type Detection</h5>
-									</div>
-									<div className="suggestion-content">
-										<p>
-											<strong>Detected:</strong>{" "}
-											{message.expense_type_info.name}
-										</p>
-										<p>
-											<strong>Confidence:</strong>{" "}
-											{(
-												message.expense_type_info
-													.confidence * 100
-											).toFixed(0)}
-											%
-										</p>
-										{message.expense_type_info.confidence <
-											0.8 && (
-											<div className="low-confidence-warning">
-												<span className="warning-icon">
-													⚠️
-												</span>
-												<span>
-													Low confidence - you may
-													want to verify the expense
-													type
-												</span>
-											</div>
-										)}
-									</div>
-								</div>
-							)}
-
 						<ExpenseDataCard
 							expenseData={message.expense_data}
 							expenseTypeInfo={message.expense_type_info}

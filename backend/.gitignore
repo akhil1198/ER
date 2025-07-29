@@ -1,0 +1,12 @@
+backend/api/__pycache__/__init__.cpython-313.pyc
+backend/api/routes/__pycache__/
+backend/api/routes/__pycache__/__init__.cpython-313.pyc
+backend/api/routes/__pycache__/expense.cpython-313.pyc
+backend/api/routes/__pycache__/health.cpython-313.pyc
+backend/api/routes/__pycache__/reports.cpython-313.pyc
+backend/api/routes/__pycache__/chat.cpython-313.pyc
+
+backend/config/__pycache__/
+backend/models/__pycache__/
+backend/services/__pycache__/
+backend/utils/__pycache__/

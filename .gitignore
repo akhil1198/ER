@@ -1,1 +1,88 @@
+# Environment variables
 .env
+
+# Python cache files - specific paths
+backend/api/__pycache__/__init__.cpython-313.pyc
+backend/api/routes/__pycache__/
+backend/api/routes/__pycache__/__init__.cpython-313.pyc
+backend/api/routes/__pycache__/expense.cpython-313.pyc
+backend/api/routes/__pycache__/health.cpython-313.pyc
+backend/api/routes/__pycache__/reports.cpython-313.pyc
+backend/api/routes/__pycache__/chat.cpython-313.pyc
+
+backend/config/__pycache__/
+backend/models/__pycache__/
+backend/services/__pycache__/
+backend/utils/__pycache__/
+
+# Python compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

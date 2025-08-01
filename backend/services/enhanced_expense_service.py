@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Any
 from models.expense import EnhancedExpenseData, EnhancedExpenseEntryRequest
 from config.settings import settings
 
@@ -134,19 +134,20 @@ class EnhancedExpenseService:
         "clearing transactions(concur administrator only)": "01186",
         "paid through ap": "01187",
         "personal expense": "01188",
+
+    }
+    
+    # Travel type mapping data
+    TRAVEL_TYPE_MAPPING = {
         
-        # Default fallback
-        "other": "01028"
     }
-    
+
+    # Payment type mapping based on actual SAP Concur data
     PAYMENT_TYPE_MAPPING = {
-        "cash": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-        "personal credit card": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", 
-        "corporate credit card": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-        "bank transfer": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-        "check": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY"
+        "cash": "CASH",
+        "personal credit card": "1007", 
     }
-    
+
     # Expense category to type options based on actual SAP Concur structure
     EXPENSE_TYPE_OPTIONS = {
         "01. Airfare": [
@@ -304,19 +305,587 @@ class EnhancedExpenseService:
         "supplies": "01007"
     }
     
+    
+    def generate_expense_form(self, expense_type_id: str) -> Dict[str, Any]:
+        """Generate dynamic form configuration based on expense type"""
+        
+        # Define field configurations for different expense types
+        EXPENSE_TYPE_FORMS = {
+            "rideshare_uber_lyft": {
+                "expense_type": {
+                    "id": "rideshare_uber_lyft",
+                    "name": "Rideshare (Uber, Lyft)",
+                    "description": "Rideshare transportation services",
+                    "category": "Transportation",
+                    "sap_form": "AJG Non-VAT Transportation"
+                },
+                "sections": [
+                    {
+                        "title": "Trip Information",
+                        "fields": [
+                            {
+                                "name": "transaction_date",
+                                "type": "date",
+                                "label": "Trip Date",
+                                "required": True,
+                                "validation": {"required": True}
+                            },
+                            {
+                                "name": "business_purpose", 
+                                "type": "textarea",
+                                "label": "Business Purpose",
+                                "required": True,
+                                "placeholder": "e.g., Client meeting transportation, Airport transfer",
+                                "validation": {"required": True, "maxLength": 255}
+                            },
+                            {
+                                "name": "travel_type",
+                                "type": "dropdown",
+                                "label": "Travel Type", 
+                                "required": True,
+                                "options": [
+                                    {"value": "domestic", "label": "Domestic"},
+                                    {"value": "international", "label": "International"}
+                                ],
+                                "default": "domestic"
+                            },
+                            {
+                                "name": "starting_city",
+                                "type": "text",
+                                "label": "Starting City",
+                                "required": True,
+                                "validation": {"required": True, "maxLength": 64}
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Payment Details",
+                        "fields": [
+                            {
+                                "name": "vendor",
+                                "type": "text", 
+                                "label": "Rideshare Company",
+                                "required": True,
+                                "placeholder": "Uber, Lyft, etc.",
+                                "validation": {"required": True, "maxLength": 64}
+                            },
+                            {
+                                "name": "amount",
+                                "type": "money",
+                                "label": "Trip Cost",
+                                "required": True,
+                                "validation": {"required": True, "min": 0.01}
+                            },
+                            {
+                                "name": "currency",
+                                "type": "dropdown",
+                                "label": "Currency",
+                                "required": True,
+                                "options": [
+                                    {"value": "USD", "label": "US Dollar (USD)"},
+                                    {"value": "EUR", "label": "Euro (EUR)"},
+                                    {"value": "GBP", "label": "British Pound (GBP)"}
+                                ],
+                                "default": "USD"
+                            },
+                            {
+                                "name": "payment_type",
+                                "type": "dropdown", 
+                                "label": "Payment Method",
+                                "required": True,
+                                "options": [
+                                    {"value": "personal_card", "label": "Personal Credit Card"},
+                                    {"value": "cash", "label": "Cash"}
+                                ],
+                                "default": "personal_card"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Additional Information",
+                        "fields": [
+                            {
+                                "name": "country",
+                                "type": "text",
+                                "label": "Country",
+                                "required": False,
+                                "default": "US",
+                                "validation": {"maxLength": 2}
+                            },
+                            {
+                                "name": "comment",
+                                "type": "textarea",
+                                "label": "Trip Details",
+                                "required": False,
+                                "placeholder": "Destination, trip purpose, or additional notes",
+                                "validation": {"maxLength": 500}
+                            }
+                        ]
+                    }
+                ]
+            },
+            
+            "meals_client_in_town": {
+                "expense_type": {
+                    "id": "meals_client_in_town", 
+                    "name": "Meals with Client(s) - In Town",
+                    "description": "Business meals with clients while in town",
+                    "category": "Meals & Entertainment",
+                    "sap_form": "AJG Non-VAT Client Meals w/ Attendees"
+                },
+                "sections": [
+                    {
+                        "title": "Meal Information",
+                        "fields": [
+                            {
+                                "name": "transaction_date",
+                                "type": "date",
+                                "label": "Meal Date",
+                                "required": True,
+                                "validation": {"required": True}
+                            },
+                            {
+                                "name": "business_purpose",
+                                "type": "textarea", 
+                                "label": "Business Purpose",
+                                "required": True,
+                                "placeholder": "e.g., Client lunch meeting, Prospect dinner discussion",
+                                "validation": {"required": True, "maxLength": 255}
+                            },
+                            {
+                                "name": "meal_type",
+                                "type": "dropdown",
+                                "label": "Meal Type",
+                                "required": True,
+                                "options": [
+                                    {"value": "breakfast", "label": "Breakfast"},
+                                    {"value": "lunch", "label": "Lunch"},
+                                    {"value": "dinner", "label": "Dinner"},
+                                    {"value": "other", "label": "Other"}
+                                ]
+                            },
+                            {
+                                "name": "vendor",
+                                "type": "text",
+                                "label": "Restaurant Name",
+                                "required": True,
+                                "validation": {"required": True, "maxLength": 64}
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Attendee Information", 
+                        "fields": [
+                            {
+                                "name": "attendees_count",
+                                "type": "number",
+                                "label": "Number of Attendees",
+                                "required": True,
+                                "validation": {"required": True, "min": 2},
+                                "default": 2
+                            },
+                            {
+                                "name": "client_prospect_name",
+                                "type": "text",
+                                "label": "Client/Prospect Company",
+                                "required": True,
+                                "placeholder": "Company name or client name",
+                                "validation": {"required": True, "maxLength": 100}
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Payment Details",
+                        "fields": [
+                            {
+                                "name": "amount",
+                                "type": "money",
+                                "label": "Total Amount",
+                                "required": True, 
+                                "validation": {"required": True, "min": 0.01}
+                            },
+                            {
+                                "name": "currency",
+                                "type": "dropdown",
+                                "label": "Currency",
+                                "required": True,
+                                "options": [
+                                    {"value": "USD", "label": "US Dollar (USD)"},
+                                    {"value": "EUR", "label": "Euro (EUR)"},
+                                    {"value": "GBP", "label": "British Pound (GBP)"}
+                                ],
+                                "default": "USD"
+                            },
+                            {
+                                "name": "payment_type",
+                                "type": "dropdown",
+                                "label": "Payment Method", 
+                                "required": True,
+                                "options": [
+                                    {"value": "personal_card", "label": "Personal Credit Card"},
+                                    {"value": "cash", "label": "Cash"}
+                                ],
+                                "default": "personal_card"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Location & Additional Info",
+                        "fields": [
+                            {
+                                "name": "city",
+                                "type": "text",
+                                "label": "City",
+                                "required": True,
+                                "validation": {"required": True, "maxLength": 64}
+                            },
+                            {
+                                "name": "country", 
+                                "type": "text",
+                                "label": "Country",
+                                "required": False,
+                                "default": "US",
+                                "validation": {"maxLength": 2}
+                            },
+                            {
+                                "name": "comment",
+                                "type": "textarea",
+                                "label": "Additional Details",
+                                "required": False,
+                                "placeholder": "Additional details about the meal or attendees",
+                                "validation": {"maxLength": 500}
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            "meals_employee_in_town": {
+                "expense_type": {
+                    "id": "meals_employee_in_town",
+                    "name": "Meals Employee(s) Only - In Town", 
+                    "description": "Meals with only company employees while in town",
+                    "category": "Meals & Entertainment",
+                    "sap_form": "AJG Non-VAT MealsEEOnly Attendees"
+                },
+                "sections": [
+                    {
+                        "title": "Meal Information",
+                        "fields": [
+                            {
+                                "name": "transaction_date",
+                                "type": "date",
+                                "label": "Meal Date",
+                                "required": True,
+                                "validation": {"required": True}
+                            },
+                            {
+                                "name": "business_purpose",
+                                "type": "textarea",
+                                "label": "Business Purpose", 
+                                "required": True,
+                                "placeholder": "e.g., Team working lunch, Employee meeting meal",
+                                "validation": {"required": True, "maxLength": 255}
+                            },
+                            {
+                                "name": "meal_type",
+                                "type": "dropdown",
+                                "label": "Meal Type",
+                                "required": True,
+                                "options": [
+                                    {"value": "breakfast", "label": "Breakfast"},
+                                    {"value": "lunch", "label": "Lunch"},
+                                    {"value": "dinner", "label": "Dinner"},
+                                    {"value": "other", "label": "Other"}
+                                ]
+                            },
+                            {
+                                "name": "vendor",
+                                "type": "text",
+                                "label": "Restaurant Name",
+                                "required": True,
+                                "validation": {"required": True, "maxLength": 64}
+                            },
+                            {
+                                "name": "attendees_count",
+                                "type": "number", 
+                                "label": "Number of Employees",
+                                "required": False,
+                                "validation": {"min": 1},
+                                "default": 1
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Payment Details",
+                        "fields": [
+                            {
+                                "name": "amount",
+                                "type": "money",
+                                "label": "Total Amount",
+                                "required": True,
+                                "validation": {"required": True, "min": 0.01}
+                            },
+                            {
+                                "name": "currency",
+                                "type": "dropdown",
+                                "label": "Currency",
+                                "required": True,
+                                "options": [
+                                    {"value": "USD", "label": "US Dollar (USD)"},
+                                    {"value": "EUR", "label": "Euro (EUR)"},
+                                    {"value": "GBP", "label": "British Pound (GBP)"}
+                                ],
+                                "default": "USD"
+                            },
+                            {
+                                "name": "payment_type",
+                                "type": "dropdown",
+                                "label": "Payment Method",
+                                "required": True,
+                                "options": [
+                                    {"value": "personal_card", "label": "Personal Credit Card"}, 
+                                    {"value": "cash", "label": "Cash"}
+                                ],
+                                "default": "personal_card"
+                            }
+                        ]
+                    },
+                    {
+                        "title": "Location & Additional Info",
+                        "fields": [
+                            {
+                                "name": "city",
+                                "type": "text",
+                                "label": "City",
+                                "required": True,
+                                "validation": {"required": True, "maxLength": 64}
+                            },
+                            {
+                                "name": "country",
+                                "type": "text",
+                                "label": "Country",
+                                "required": False,
+                                "default": "US",
+                                "validation": {"maxLength": 2}
+                            },
+                            {
+                                "name": "comment",
+                                "type": "textarea",
+                                "label": "Additional Details", 
+                                "required": False,
+                                "placeholder": "Additional details about the meal",
+                                "validation": {"maxLength": 500}
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        
+        # Normalize expense type ID
+        normalized_id = expense_type_id.lower().replace(" ", "_").replace("(", "").replace(")", "").replace(",", "")
+        
+        # Map common variations to our form IDs
+        if "rideshare" in normalized_id or "uber" in normalized_id or "lyft" in normalized_id:
+            normalized_id = "rideshare_uber_lyft"
+        elif "meals_with_client" in normalized_id and "in_town" in normalized_id:
+            normalized_id = "meals_client_in_town"
+        elif "meals_employee" in normalized_id and "in_town" in normalized_id:
+            normalized_id = "meals_employee_in_town"
+        
+        # Return the form configuration
+        return EXPENSE_TYPE_FORMS.get(normalized_id, self._get_default_form(expense_type_id))
+
+    def _get_default_form(self, expense_type_id: str) -> Dict[str, Any]:
+        """Return a default form configuration for unknown expense types"""
+        return {
+            "expense_type": {
+                "id": expense_type_id,
+                "name": expense_type_id.replace('_', ' ').title(),
+                "description": "Basic expense form",
+                "category": "Other",
+                "sap_form": "Basic Form"
+            },
+            "sections": [
+                {
+                    "title": "Basic Information",
+                    "fields": [
+                        {
+                            "name": "transaction_date",
+                            "type": "date", 
+                            "label": "Transaction Date",
+                            "required": True
+                        },
+                        {
+                            "name": "business_purpose",
+                            "type": "textarea",
+                            "label": "Business Purpose",
+                            "required": True
+                        },
+                        {
+                            "name": "vendor",
+                            "type": "text",
+                            "label": "Vendor",
+                            "required": True
+                        },
+                        {
+                            "name": "amount",
+                            "type": "money",
+                            "label": "Amount", 
+                            "required": True
+                        }
+                    ]
+                }
+            ]
+        }
+
+    async def map_data_to_expense_type(self, expense_type: str, extracted_data: Dict[str, Any]) -> 'MappingResult':
+        """Map extracted data to specific expense type format"""
+        
+        # Create a mapping result object
+        class MappingResult:
+            def __init__(self, mapped_data, expense_type_info, validation_errors):
+                self.mapped_data = mapped_data
+                self.expense_type = expense_type_info
+                self.validation_errors = validation_errors
+        
+        class ExpenseTypeInfo:
+            def __init__(self, name, description, category):
+                self.name = name
+                self.description = description
+                self.category = category
+        
+        # Map the data based on expense type
+        if "rideshare" in expense_type.lower() or "uber" in expense_type.lower() or "lyft" in expense_type.lower():
+            print("Mapping to Rideshare (Uber, Lyft) expense type", )
+            mapped_data = {
+                "transaction_date": extracted_data.get("transaction_date"),
+                "business_purpose": extracted_data.get("business_purpose"),
+                "travel_type": extracted_data.get("travel_type", "Domestic"),
+                "starting_city": extracted_data.get("starting_city"),
+                "country": extracted_data.get("country", "US"),
+                "payment_type": extracted_data.get("payment_type"),
+                "amount": extracted_data.get("amount"),
+                "currency": extracted_data.get("currency", "USD"),
+                "vendor": extracted_data.get("vendor"),
+                "comment": extracted_data.get("comment"),
+                "expense_type": extracted_data.get("expense_type")
+            }
+            expense_type_info = ExpenseTypeInfo(
+                name="Rideshare (Uber, Lyft)",
+                description="Rideshare transportation services",
+                category="Transportation"
+            )
+        
+        elif "meals with client" in expense_type.lower():
+            mapped_data = {
+                "transaction_date": extracted_data.get("transaction_date"),
+                "business_purpose": extracted_data.get("business_purpose"),
+                "meal_type": extracted_data.get("meal_type"),
+                "vendor": extracted_data.get("vendor"),
+                "city": extracted_data.get("city"),
+                "country": extracted_data.get("country", "US"),
+                "payment_type": extracted_data.get("payment_type"),
+                "amount": extracted_data.get("amount"),
+                "currency": extracted_data.get("currency", "USD"),
+                "attendees_count": extracted_data.get("attendees_count", 2),
+                "client_prospect_name": extracted_data.get("client_prospect_name"),
+                "comment": extracted_data.get("comment"),
+                "expense_type": extracted_data.get("expense_type")
+            }
+            expense_type_info = ExpenseTypeInfo(
+                name="Meals with Client(s) - In Town",
+                description="Business meals with clients while in town", 
+                category="Meals & Entertainment"
+            )
+        
+        elif "meals employee" in expense_type.lower():
+            mapped_data = {
+                "transaction_date": extracted_data.get("transaction_date"),
+                "business_purpose": extracted_data.get("business_purpose"),
+                "meal_type": extracted_data.get("meal_type"),
+                "vendor": extracted_data.get("vendor"),
+                "city": extracted_data.get("city"),
+                "country": extracted_data.get("country", "US"),
+                "payment_type": extracted_data.get("payment_type"),
+                "amount": extracted_data.get("amount"),
+                "currency": extracted_data.get("currency", "USD"),
+                "attendees_count": extracted_data.get("attendees_count", 1),
+                "comment": extracted_data.get("comment"),
+                "expense_type": extracted_data.get("expense_type")
+            }
+            expense_type_info = ExpenseTypeInfo(
+                name="Meals Employee(s) Only - In Town",
+                description="Meals with only company employees while in town",
+                category="Meals & Entertainment"
+            )
+        
+        else:
+            # Default mapping
+            mapped_data = extracted_data
+            expense_type_info = ExpenseTypeInfo(
+                name=expense_type,
+                description="Generic expense",
+                category="Other"
+            )
+        
+        # Validate the mapped data
+        validation_errors = self.validate_expense_data_dict(mapped_data, expense_type)
+        
+        return MappingResult(mapped_data, expense_type_info, validation_errors)
+
+    def validate_expense_data_dict(self, data: Dict[str, Any], expense_type: str) -> List[Dict[str, str]]:
+        """Validate mapped expense data and return validation errors"""
+        errors = []
+        
+        # Common validations
+        if not data.get("transaction_date"):
+            errors.append({"field": "transaction_date", "message": "Transaction date is required"})
+        
+        if not data.get("business_purpose"):
+            errors.append({"field": "business_purpose", "message": "Business purpose is required"})
+        
+        if not data.get("vendor"):
+            errors.append({"field": "vendor", "message": "Vendor is required"})
+        
+        if not data.get("amount") or data.get("amount", 0) <= 0:
+            errors.append({"field": "amount", "message": "Valid amount is required"})
+        
+        # Expense type specific validations
+        if "meals" in expense_type.lower():
+            if not data.get("meal_type"):
+                errors.append({"field": "meal_type", "message": "Meal type is required"})
+            
+            if "client" in expense_type.lower():
+                if not data.get("client_prospect_name"):
+                    errors.append({"field": "client_prospect_name", "message": "Client/Prospect name is required for client meals"})
+                
+                if not data.get("attendees_count") or data.get("attendees_count", 0) < 2:
+                    errors.append({"field": "attendees_count", "message": "At least 2 attendees required for client meals"})
+        
+        elif "rideshare" in expense_type.lower() or "transportation" in expense_type.lower():
+            if not data.get("starting_city"):
+                errors.append({"field": "starting_city", "message": "Starting city is required for transportation"})
+            
+            if not data.get("travel_type"):
+                errors.append({"field": "travel_type", "message": "Travel type is required"})
+        
+        return errors
+    
     def get_expense_categories(self) -> List[str]:
         """Get all available expense categories"""
         return list(self.EXPENSE_TYPE_OPTIONS.keys())
     
     def get_expense_type_options(self, category: str) -> List[str]:
         """Get available expense types for a category"""
-        return self.EXPENSE_TYPE_OPTIONS.get(category, ["Other"])
-    
+        return self.EXPENSE_TYPE_OPTIONS.get(category, [])
+
     def find_expense_type_id(self, expense_type_name: str) -> str:
         """Find expense type ID by name, with fuzzy matching"""
         if not expense_type_name:
-            return "01028"  # Default fallback
-            
+            return ""  # Default fallback
+
         # Normalize the input
         normalized_name = expense_type_name.lower().strip()
         
@@ -334,7 +903,22 @@ class EnhancedExpenseService:
                 return expense_id
         
         # Default fallback
-        return "01028"
+        return ""
+    
+    def find_payment_type_id(self, payment_type_name: str) -> str:
+        """Find payment type ID by name, with fuzzy matching"""
+        if not payment_type_name:
+            return ""  # Default fallback
+
+        # Normalize the input
+        normalized_name = payment_type_name.lower().strip()
+        
+        # Direct mapping lookup
+        if normalized_name in self.PAYMENT_TYPE_MAPPING:
+            return self.PAYMENT_TYPE_MAPPING[normalized_name]
+        
+        # Default fallback
+        return ""
     
     def get_expense_type_by_category_and_keywords(self, category: str, keywords: List[str]) -> str:
         """Get the most appropriate expense type based on category and keywords"""
@@ -362,52 +946,243 @@ class EnhancedExpenseService:
         
         return "01028"
     
-    def map_expense_data_to_entry(self, expense_data: EnhancedExpenseData, report_id: str) -> EnhancedExpenseEntryRequest:
+    def map_expense_data_to_entry(self, extracted_data: Dict[str, Any], report_id: str) -> 'MappingResult':
         """Map enhanced expense data to SAP Concur expense entry format"""
         
-        # Get expense type code with improved matching
-        expense_type_code = self.find_expense_type_id(expense_data.expense_type)
+        # data coming in for mapping -
+            # expense_type='Rideshare (Uber, Lyft)' 
+            # transaction_date='2018-10-15' 
+            # business_purpose='Client meeting transportation' 
+            # vendor='Uber' 
+            # city=None 
+            # country='US' 
+            # payment_type='Personal Credit Card' 
+            # amount=25.68 
+            # currency='USD' 
+            # comment='Trip from San Francisco, CA US to San Francisco, CA US, Duration: 00:12:10, Distance: 1.44 mi'
+
+        print("******************Mapping expense data to entry in enhanced_expense_service.py:", extracted_data)
+        print(f"Expense Type: {extracted_data.expense_type}")
+        print(f"Transaction Date: {extracted_data.transaction_date}")
+        print(f"Vendor: {extracted_data.vendor}")
+        print(f"Amount: {extracted_data.amount}")
+        print(f"Currency: {extracted_data.currency}")
+        print(f"Business Purpose: {extracted_data.business_purpose}")
+        print(f"Payment Type: {extracted_data.payment_type}")
+        print(f"City: {extracted_data.starting_city}")
+        print(f"Country: {extracted_data.country}")
+        print(f"Comment: {extracted_data.comment}")
+        print(f"Report ID: {report_id}")
+
+
+        # step 1 - Find the Expense Type Code
+        # if the expense type is rideshare, we should get the code for rideshare under the Transportation category.
+        expense_type_code = self.find_expense_type_id(extracted_data.expense_type)
+
+        # get payment type id
+        payment_type_id = self.find_payment_type_id(extracted_data.payment_type)
+
+
+        print(f"-----------------------------------------Expense Type Code: {expense_type_code}, Payment Type ID: {payment_type_id}")
+        class MappingResult:
+            def __init__(self, mapped_data, expense_type_info, validation_errors):
+                self.mapped_data = mapped_data
+                self.expense_type = expense_type_info
+                self.validation_errors = validation_errors
         
-        # Get payment type ID
-        payment_type_key = (expense_data.payment_type or "personal credit card").lower()
-        payment_type_id = self.PAYMENT_TYPE_MAPPING.get(payment_type_key, settings.DEFAULT_PAYMENT_TYPE_ID)
+        class ExpenseTypeInfo:
+            def __init__(self, name, description, category):
+                self.name = name
+                self.description = description
+                self.category = category
         
-        # Create description with business purpose
-        description = expense_data.business_purpose or "Business expense"
-        if len(description) > 64:
-            description = description[:61] + "..."
+        # Map the data based on expense type
+        if "rideshare" in extracted_data.expense_type.lower() or "uber" in extracted_data.expense_type.lower() or "lyft" in extracted_data.expense_type.lower():
+            print("Mapping to Rideshare (Uber, Lyft) expense type", )
+            mapped_data = {
+                "ReportID": report_id,
+                "ExpenseTypeCode": expense_type_code,                
+                "TransactionDate": extracted_data.transaction_date,
+                "description": extracted_data.business_purpose,
+                #"travel_type": extracted_data.travel_type,
+                "fromLocation": extracted_data.starting_city,
+                "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+                "TransactionAmount": extracted_data.amount,
+                "TransactionCurrencyCode": extracted_data.currency,
+                "VendorDescription": extracted_data.vendor,
+                "custom9": "Client",
+                "comment": extracted_data.comment,
+                "expense_type": extracted_data.expense_type
+            }
+            print("------------------------- Mapped Data for Rideshare (Uber, Lyft):", mapped_data)
+            expense_type_info = ExpenseTypeInfo(
+                name="Rideshare (Uber, Lyft)",
+                description="Rideshare transportation services",
+                category="Transportation"
+            )
+
+        elif "meals with client" in extracted_data.expense_type.lower():
+
+            mapped_data = {
+                "ReportID": report_id,
+                "ExpenseTypeCode": expense_type_code,
+                "TransactionDate": extracted_data.transaction_date,
+                "business_purpose": extracted_data.business_purpose,
+                "meal_type": extracted_data.meal_type,
+                "vendor": extracted_data.vendor,
+                "city": extracted_data.city,
+                "country": extracted_data.country,
+                "payment_type": extracted_data.payment_type,
+                "amount": extracted_data.amount,
+                "currency": extracted_data.currency,
+                "attendees_count": extracted_data.attendees_count,
+                "client_prospect_name": extracted_data.client_prospect_name,
+                "comment": extracted_data.comment
+            }
+            expense_type_info = ExpenseTypeInfo(
+                name="Meals with Client(s) - In Town",
+                description="Business meals with clients while in town", 
+                category="Meals & Entertainment"
+            )
+
+        elif "meals employee" in extracted_data.expense_type.lower():
+            print("hello here- -----------------")
+            mapped_data = {
+                "ReportID": report_id,
+                "ExpenseTypeCode": expense_type_code,
+                "TransactionDate": extracted_data.transaction_date,
+                "description": extracted_data.business_purpose,
+                "meal_type": extracted_data.meal_type,
+                "VendorDescription": extracted_data.vendor,
+                # "city": extracted_data.city,
+                # "country": extracted_data.country,
+                "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+                "TransactionAmount": extracted_data.amount,
+                "TransactionCurrencyCode": extracted_data.currency,
+                #"attendees_count": extracted_data.attendees_count,
+                #"custom9": extracted_data.client_prospect_name,
+                "comment": extracted_data.comment,
+                "expense_type": extracted_data.expense_type
+            }
+            expense_type_info = ExpenseTypeInfo(
+                name="Meals Employee(s) Only - In Town",
+                description="Meals with only company employees while in town",
+                category="Meals & Entertainment"
+            )
         
-        # Vendor description
-        vendor_description = expense_data.vendor or "Unknown Vendor"
-        if len(vendor_description) > 64:
-            vendor_description = vendor_description[:61] + "..."
+        else:
+            # Default mapping
+            mapped_data = extracted_data
+            expense_type_info = ExpenseTypeInfo(
+                name=extracted_data.expense_type,
+                description="Generic expense",
+                category="Other"
+            )
         
-        # Handle location mapping
-        location_city = expense_data.city or settings.DEFAULT_LOCATION_CITY
-        location_country = expense_data.country or settings.DEFAULT_LOCATION_COUNTRY
+        # Validate the mapped data
+        #validation_errors = self.validate_expense_data_dict(mapped_data, expense_type_info)
+        validation_errors = {}
+
+        return mapped_data
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         
-        return EnhancedExpenseEntryRequest(
-            report_id=report_id,
-            expense_type_code=expense_type_code,
-            transaction_date=expense_data.transaction_date or datetime.now().strftime('%Y-%m-%d'),
-            transaction_amount=expense_data.amount or 0.0,
-            transaction_currency_code=expense_data.currency or "USD",
-            payment_type_id=payment_type_id,
-            description=description,
-            vendor_description=vendor_description,
+        
+        # # Get payment type ID - FIXED MAPPING
+        # payment_type_key = (expense_data.payment_type or "personal credit card").lower()
+        # payment_type_id = self._get_correct_payment_type_id(payment_type_key)
+        
+        # print(f"Payment Type ID: {payment_type_id}")
+        
+        # # Create description with business purpose
+        # description = expense_data.business_purpose or "Business expense"
+        # if len(description) > 64:
+        #     description = description[:61] + "..."
+        
+        # # Vendor description
+        # vendor_description = expense_data.vendor or "Unknown Vendor"
+        # if len(vendor_description) > 64:
+        #     vendor_description = vendor_description[:61] + "..."
+        
+        # # Handle location mapping - DYNAMIC BASED ON EXPENSE TYPE
+        # if expense_type_code == "01072":  # Rideshare
+        #     location_city = getattr(expense_data, 'starting_city', None) or expense_data.city or settings.DEFAULT_LOCATION_CITY
+        # else:
+        #     location_city = expense_data.city or settings.DEFAULT_LOCATION_CITY
             
-            # Meal-specific fields
-            meal_type=expense_data.meal_type,
-            attendees_count=expense_data.attendees_count or 1,
-            client_prospect_name=expense_data.client_prospect_name,
+        # location_country = expense_data.country or settings.DEFAULT_LOCATION_COUNTRY
+        
+        # return EnhancedExpenseEntryRequest(
+        #     report_id=report_id,
+        #     expense_type_code=expense_type_code,
+        #     transaction_date=expense_data.transaction_date or datetime.now().strftime('%Y-%m-%d'),
+        #     transaction_amount=expense_data.amount or 0.0,
+        #     transaction_currency_code=expense_data.currency or "USD",
+        #     payment_type_id=payment_type_id,
+        #     description=description,
+        #     vendor_description=vendor_description,
             
-            # Location fields
-            location_city=location_city,
-            location_country=location_country,
-            location_id=settings.DEFAULT_LOCATION_ID,
-            location_name=settings.DEFAULT_LOCATION_NAME,
-            location_country_subdivision=settings.DEFAULT_LOCATION_COUNTRY_SUBDIVISION
-        )
+        #     # Meal-specific fields (only for meals)
+        #     meal_type=getattr(expense_data, 'meal_type', None) if "meal" in expense_type_code.lower() or expense_type_code in ["01028", "01027", "01075", "01076"] else None,
+        #     attendees_count=getattr(expense_data, 'attendees_count', None) if "meal" in expense_type_code.lower() or expense_type_code in ["01028", "01027", "01075", "01076"] else None,
+        #     client_prospect_name=getattr(expense_data, 'client_prospect_name', None) if "meal" in expense_type_code.lower() or expense_type_code in ["01027", "01076"] else None,
+            
+        #     # Transportation-specific fields (only for transportation)
+        #     travel_type=getattr(expense_data, 'travel_type', None) if expense_type_code == "01072" else None,
+        #     starting_city=getattr(expense_data, 'starting_city', None) if expense_type_code == "01072" else None,
+            
+        #     # Location fields
+        #     location_city=location_city,
+        #     location_country=location_country,
+        #     location_id=settings.DEFAULT_LOCATION_ID,
+        #     location_name=settings.DEFAULT_LOCATION_NAME,
+        #     location_country_subdivision=settings.DEFAULT_LOCATION_COUNTRY_SUBDIVISION
+        # )
     
     def validate_expense_data(self, expense_data: EnhancedExpenseData) -> Dict[str, str]:
         """Validate expense data and return errors"""

@@ -16,14 +16,6 @@ class Settings:
     
     # CORS Configuration
     CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173"]
-    
-    # Default Values
-    DEFAULT_LOCATION_ID: str = "D23A4483615E4A2084260E97E5F0D5E0"
-    DEFAULT_LOCATION_NAME: str = "Miami, Florida"
-    DEFAULT_LOCATION_CITY: str = "Miami"
-    DEFAULT_LOCATION_COUNTRY_SUBDIVISION: str = "US-FL"
-    DEFAULT_LOCATION_COUNTRY: str = "US"
-    DEFAULT_PAYMENT_TYPE_ID: str = "gWuT0oX4FNnukaeUcpOO3WSub$p5tY"
     DEFAULT_POLICY_ID: str = "2AFC92D1D0822F4A88D380BF14CFD05E"
-
+    
 settings = Settings()

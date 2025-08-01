@@ -328,7 +328,6 @@ AI_MAPPING_PROMPTS = {
     - breakfast: Morning meals, coffee meetings, breakfast items
     - lunch: Midday meals, business lunch meetings
     - dinner: Evening meals, dinner meetings, late dining
-    - snacks: Light refreshments, coffee, pastries, bar snacks
     - other: Mixed meals or unclear timing
     
     Return only the meal type value.
@@ -336,11 +335,8 @@ AI_MAPPING_PROMPTS = {
     
     "payment_type_detection": """
     Based on the receipt content and transaction details, determine payment type:
-    - corporate_card: If company credit card used
     - personal_card: If personal credit card used (look for personal names)
     - cash: If cash payment mentioned
-    - bank_transfer: If wire transfer or bank payment
-    - check: If check payment mentioned
     
     Return only the payment type value.
     """,

@@ -5,7 +5,7 @@ from models.report import ReportCreateRequest
 from services.shared_service import chat_service, sap_service, expense_service
 from services.chat_service import ChatService
 from services.sap_service import SAPService
-from services.expense_service import ExpenseService
+from services.enhanced_expense_service import EnhancedExpenseService
 from typing import Dict, Any
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["chat"])
 # Initialize services
 chat_service = ChatService()
 sap_service = SAPService()
-expense_service = ExpenseService()
+expense_service = EnhancedExpenseService()
 
 @router.post("/chat")
 async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
@@ -124,6 +124,8 @@ async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
                             irs_tax_policy_compliance=compliance_data.get("irs_tax_policy_compliance", False)
                         )
                         
+                        # Creating the report in SAP Concur
+                        print(f"Creating report with data: {report_request}")
                         created_report = await sap_service.create_report(report_request)
                         
                         report_name = chat_service.pending_report_data["name"]
@@ -142,7 +144,8 @@ async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
                         expense_details = ""
                         
                         expense_data_to_use = chat_service.pending_expense_data or chat_service.current_expense_data
-                        
+                        print("$$$$$$$$$$$$$$$$$$ expense_data_to_use:", expense_data_to_use)
+
                         if expense_data_to_use and report_id:
                             try:
                                 expense_entry_data = expense_service.map_expense_data_to_entry(expense_data_to_use, report_id)
@@ -199,15 +202,19 @@ async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
                     selected_report = chat_service.available_reports[selection - 1]
                     
                     if chat_service.current_expense_data:
+                        print("#####################################current_expense_data being sent to map_expense_data_to_entry:", chat_service.current_expense_data)
                         try:
+
                             expense_entry_data = expense_service.map_expense_data_to_entry(chat_service.current_expense_data, selected_report['id'])
+                            print("#####################################expense_entry_data being sent to create_expense_entry:", expense_entry_data)
                             created_entry = await sap_service.create_expense_entry(expense_entry_data)
-                            
+                            print("%%%%%%%%%%%%%%%%%%%%%%%% created_entry:", {selected_report})
+                            print("asdfasdfasdfasdfasdf")
                             chat_service.clear_state()
                             
                             return {
                                 "success": True,
-                                "message": f"✅ **Expense added successfully!**\n\n📊 **Report Details:**\n• **Report**: {selected_report['name']}\n• **Previous Total**: {selected_report['total']} {selected_report['currency']}\n• **New Expense**: ${expense_entry_data.transaction_amount:.2f}\n• **Status**: {selected_report['status']}\n\n💰 **Expense Details:**\n• **Vendor**: {expense_entry_data.vendor_description}\n• **Amount**: ${expense_entry_data.transaction_amount:.2f} {expense_entry_data.transaction_currency_code}\n• **Date**: {expense_entry_data.transaction_date}\n• **Description**: {expense_entry_data.description}\n\n🎉 Your expense has been successfully added to the report!"
+                                "message": f"✅ **Expense added successfully!**\n\n📊 **Report Details:**\n• **Report**: {selected_report['name']}\n• **Previous Total**: {selected_report['total']} {selected_report['currency']}\n• **New Expense**: ${expense_entry_data.get("amount"):.2f}\n• **Status**: {selected_report['status']}\n\n💰 **Expense Details:**\n• **Vendor**: {expense_entry_data.get("vendor")}\n• **Amount**: ${expense_entry_data.get("amount"):.2f} {expense_entry_data.get("currency")}\n• **Date**: {expense_entry_data.get("TransactionDate")}\n• **Description**: {expense_entry_data.get("description")}\n\n🎉 Your expense has been successfully added to the report!"
                             }
                             
                         except Exception as e:

@@ -1,5 +1,3 @@
-// frontend/src/App.jsx - Updated for dynamic expense types
-
 import React, { useState, useEffect } from "react";
 import "./App.css";
 
@@ -63,8 +61,9 @@ function App() {
 		return () => window.removeEventListener("resize", checkIfMobile);
 	}, []);
 
-	// Initialize chat
+	// initializeChat is a custom hook from useFileUpload that sets up the chat state
 	useEffect(() => {
+		console.log("Initializing chat...");
 		initializeChat();
 	}, [initializeChat]);
 
@@ -90,7 +89,13 @@ function App() {
 		addMessage(imageMessage);
 
 		try {
+			// Call the uploadFile function to process the receipt
 			const data = await uploadFile(file);
+
+			console.log(
+				"************************Receipt processed successfully:",
+				data
+			);
 
 			// Update current expense data with enhanced information
 			updateExpenseData(data.expense_data);
@@ -114,6 +119,7 @@ function App() {
 			};
 
 			addMessage(responseMessage);
+            console.log("************************Response message added:", responseMessage);
 
 			// Clean up the temporary object URL
 			URL.revokeObjectURL(imageUrl);

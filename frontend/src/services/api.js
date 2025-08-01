@@ -28,6 +28,8 @@ class ApiService {
 		});
 	}
 
+	// sending the receipt image to the backend for processing
+	// This endpoint processes the receipt image and returns extracted data
 	async processReceipt(file) {
 		const formData = new FormData();
 		formData.append("file", file);

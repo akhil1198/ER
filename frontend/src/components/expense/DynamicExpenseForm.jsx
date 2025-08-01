@@ -224,9 +224,7 @@ const DynamicExpenseForm = ({
 			label: "Payment Type",
 			options: [
 				{ value: "personal_card", label: "Personal Credit Card" },
-				{ value: "corporate_card", label: "Corporate Credit Card" },
 				{ value: "cash", label: "Cash" },
-				{ value: "bank_transfer", label: "Bank Transfer" },
 			],
 		},
 		currency: {

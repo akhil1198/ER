@@ -104,46 +104,153 @@ class SAPService:
             print(f"SAP Create Report Error: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to create SAP report: {str(e)}")
     
-    async def create_expense_entry(self, expense_data: ExpenseEntryRequest) -> Dict:
-        """Create new expense entry in SAP Concur"""
+    async def create_expense_entry_enhanced(self, expense_data: Dict[str, any]) -> Dict:
+        """Create new expense entry in SAP Concur with enhanced data mapping"""
         try:
             url = f"{settings.SAP_BASE_URL}/api/v3.0/expense/entries?user={settings.SAP_USER_LOGIN}"
             headers = self._get_headers()
             
-            # Validate and sanitize data before sending
-            description = expense_data.description[:64] if expense_data.description else "Business expense"
-            vendor_description = expense_data.vendor_description[:64] if expense_data.vendor_description else "Vendor"
-            
+            # Build the payload from the enhanced expense data
             payload = {
-                "ReportID": expense_data.report_id,
-                "ExpenseTypeCode": expense_data.expense_type_code,
-                "TransactionDate": expense_data.transaction_date,
-                "TransactionAmount": expense_data.transaction_amount,
-                "TransactionCurrencyCode": expense_data.transaction_currency_code,
-                "PaymentTypeID": expense_data.payment_type_id,
-                "Description": description,
-                "VendorDescription": vendor_description,
-                "location": {
-                    "id": expense_data.location_id,
-                    "name": expense_data.location_name,
-                    "city": expense_data.location_city,
-                    "countrySubDivisionCode": expense_data.location_country_subdivision,
-                    "countryCode": expense_data.location_country
-                },
-                "IsPersonal": expense_data.is_personal,
-                "IsBillable": expense_data.is_billable,
-                "TaxReceiptType": expense_data.tax_receipt_type
+                "ReportID": expense_data["ReportID"],
+                "ExpenseTypeCode": expense_data["ExpenseTypeCode"],
+                "TransactionDate": expense_data["TransactionDate"],
+                "TransactionAmount": expense_data["TransactionAmount"],
+                "TransactionCurrencyCode": expense_data["TransactionCurrencyCode"],
+                "PaymentTypeID": expense_data["PaymentTypeID"],
+                "Description": expense_data["Description"],
+                "VendorDescription": expense_data["VendorDescription"],
+                "Location": expense_data["Location"],
+                "IsPersonal": expense_data.get("IsPersonal", False),
+                "IsBillable": expense_data.get("IsBillable", False),
+                "TaxReceiptType": expense_data.get("TaxReceiptType", "R")
             }
             
+            # Add custom fields if they exist
+            custom_fields = []
+            for i in range(1, 5):  # Custom1 through Custom4
+                custom_key = f"Custom{i}"
+                if custom_key in expense_data and expense_data[custom_key]:
+                    custom_fields.append({
+                        "Name": custom_key,
+                        "Value": str(expense_data[custom_key])
+                    })
+            
+            if custom_fields:
+                payload["CustomFields"] = custom_fields
+            
+            if "Custom1" in expense_data and expense_data["Custom1"]:
+                payload["Custom1"] = str(expense_data["Custom1"])
+            if "Custom2" in expense_data and expense_data["Custom2"]:
+                payload["Custom2"] = str(expense_data["Custom2"])
+            if "Custom3" in expense_data and expense_data["Custom3"]:
+                payload["Custom3"] = str(expense_data["Custom3"])
+            if "Custom4" in expense_data and expense_data["Custom4"]:
+                payload["Custom4"] = str(expense_data["Custom4"])
+
+            print(f"🚀 SAP Payload: {json.dumps(payload, indent=2)}")
+            
+            print(f"Creating enhanced expense entry at: {url}")
+            print(f"Enhanced Payload: {json.dumps(payload, indent=2)}")
+            print(f"Description length: {len(payload['Description'])}")
+            print(f"Vendor description length: {len(payload['VendorDescription'])}")
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            print(f"Create Enhanced Expense Response Status: {response.status_code}")
+            print(f"Create Enhanced Expense Response: {response.text}")
+            
+            if response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get('Message', 'Bad Request')
+                    print(f"SAP API Error: {error_message}")
+                    
+                    # Log the full error details for debugging
+                    if 'Details' in error_data:
+                        print(f"SAP API Error Details: {error_data['Details']}")
+                    
+                    raise HTTPException(status_code=400, detail=f"SAP Concur API error: {error_message}")
+                except (json.JSONDecodeError, KeyError):
+                    raise HTTPException(status_code=400, detail=f"SAP Concur API error: {response.text}")
+            
+            response.raise_for_status()
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            print(f"SAP Create Enhanced Expense Entry Error: {str(e)}")
+            error_detail = f"Failed to create expense entry: {str(e)}"
+            
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_data = e.response.json()
+                    if 'Message' in error_data:
+                        error_detail = f"SAP Concur error: {error_data['Message']}"
+                    if 'Details' in error_data:
+                        error_detail += f" - Details: {error_data['Details']}"
+                except:
+                    pass
+                    
+            raise HTTPException(status_code=500, detail=error_detail)
+    
+    async def create_expense_entry(self, expense_data: ExpenseEntryRequest) -> Dict:
+        """Create new expense entry in SAP Concur"""
+
+
+        try:
+            url = f"{settings.SAP_BASE_URL}/api/v3.0/expense/entries?user={settings.SAP_USER_LOGIN}"
+            headers = self._get_headers()
+            
+            print("------------ Creating expense entry in SAP Concur with this expense data ------------->", expense_data)
+            print("report_id:", expense_data.get("ReportID"))
+            print("expense_type_code:", expense_data.get("ExpenseTypeCode"))
+            print("transaction_date:", expense_data.get("TransactionDate"))
+            print("TransactionAmount:", expense_data.get("amount"))
+            print("description:", expense_data.get("description"))
+            print("vendor:", expense_data.get("vendor"))
+            # Validate and sanitize data before sending
+            description = expense_data.get("description", "")[:64] if expense_data.get("description") else "Business expense"
+            vendor_description = expense_data.get("vendor", "")[:64] if expense_data.get("vendor") else "Vendor"
+
+            if expense_data.get("ExpenseTypeCode") == "01072": # rideshare
+                payload = {
+                    'ReportID': expense_data.get("ReportID"), 
+                    'ExpenseTypeCode': expense_data.get("ExpenseTypeCode"), 
+                    'TransactionDate': expense_data.get("TransactionDate"), 
+                    'description': expense_data.get("description"), 
+                    'fromLocation': expense_data.get("fromLocation"), 
+                    'paymentTypeId': "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", 
+                    'TransactionAmount': expense_data.get("TransactionAmount"), 
+                    'TransactionCurrencyCode': expense_data.get("TransactionCurrencyCode"), 
+                    'VendorDescription': expense_data.get("VendorDescription"), 
+                    'comment': expense_data.get("comment"), 
+                    'custom9': "client" # custom9 is for client/prospect name
+                }
+            elif expense_data.get("ExpenseTypeCode") == "01028": # meal
+                payload = {
+                    'ReportID': expense_data.get("ReportID"), 
+                    'ExpenseTypeCode': expense_data.get("ExpenseTypeCode"), 
+                    'TransactionDate': expense_data.get("TransactionDate"), 
+                    'description': expense_data.get("description"), 
+                    'fromLocation': expense_data.get("from_location"), 
+                    'paymentTypeId': "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", 
+                    'TransactionAmount': expense_data.get("amount"), 
+                    'TransactionCurrencyCode': expense_data.get("currency"), 
+                    'VendorDescription': expense_data.get("vendor"), 
+                    'comment': expense_data.get("comment"), 
+                    'expense_type': expense_data.get("expense_type"),
+                    'custom9': "ap" # custom9 is for client/prospect name
+                }
+
             print(f"Creating expense entry at: {url}")
-            print(f"Payload: {json.dumps(payload, indent=2)}")
-            print(f"Description length: {len(description)}")
-            print(f"Vendor description length: {len(vendor_description)}")
+            print(f"Payload: {payload}")
+            # print(f"Description length: {len(description)}")
+            # print(f"Vendor description length: {len(vendor_description)}")
             
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             print(f"Create Expense Response Status: {response.status_code}")
             print(f"Create Expense Response: {response.text}")
-            
+            print("response ------------- ", response.json())
+
             if response.status_code == 400:
                 try:
                     error_data = response.json()
@@ -153,11 +260,11 @@ class SAPService:
                 except (json.JSONDecodeError, KeyError):
                     raise HTTPException(status_code=400, detail=f"SAP Concur API error: {response.text}")
             
-            response.raise_for_status()
-            return response.json()
+            # response.raise_for_status()
+            return response
             
         except requests.exceptions.RequestException as e:
-            print(f"SAP Create Expense Entry Error: {str(e)}")
+            print(f"SAP Create Legacy Expense Entry Error: {str(e)}")
             error_detail = f"Failed to create expense entry: {str(e)}"
             
             if hasattr(e, 'response') and e.response is not None:
@@ -169,3 +276,18 @@ class SAPService:
                     pass
                     
             raise HTTPException(status_code=500, detail=error_detail)
+
+    def _log_api_call(self, method: str, url: str, payload: Dict = None, response_status: int = None, response_text: str = None):
+        """Helper method to log API calls for debugging"""
+        print(f"\n{'='*50}")
+        print(f"SAP CONCUR API CALL")
+        print(f"{'='*50}")
+        print(f"Method: {method}")
+        print(f"URL: {url}")
+        if payload:
+            print(f"Payload: {json.dumps(payload, indent=2)}")
+        if response_status:
+            print(f"Response Status: {response_status}")
+        if response_text:
+            print(f"Response: {response_text[:1000]}...")
+        print(f"{'='*50}\n")

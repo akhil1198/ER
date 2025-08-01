@@ -11,6 +11,7 @@ export const useFileUpload = () => {
 		setDragActive(e.type === "dragenter" || e.type === "dragover");
 	}, []);
 
+	// Processes the receipt image
 	const uploadFile = useCallback(
 		async (file) => {
 			if (!file || isUploading) return null;
@@ -19,9 +20,11 @@ export const useFileUpload = () => {
 				throw new Error("Invalid file type. Please upload an image.");
 			}
 
+			// setting loading spinner
 			setIsUploading(true);
 
 			try {
+				// Call the API service to process the receipt image and returns the extracted data
 				const data = await apiService.processReceipt(file);
 				return data;
 			} catch (error) {

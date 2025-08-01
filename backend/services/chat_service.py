@@ -71,7 +71,7 @@ class ChatService:
         }
     
     def parse_report_details(self, message: str) -> Optional[Dict]:
-        """Parse report details from user message with better flexibility"""
+        """Parse report details from user message to get report name, business purpose, and comment"""
         
         # Try structured format first
         if ":" in message:

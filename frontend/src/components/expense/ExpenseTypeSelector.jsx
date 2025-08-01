@@ -318,11 +318,6 @@ const EnhancedExpenseDataCard = ({
 			<div className="expense-header">
 				<h4>🧾 Extracted Expense Data</h4>
 				<div className="expense-header-actions">
-					<div className="ai-confidence">
-						<span className="confidence-badge">
-							🤖 AI Detected: {currentData.expense_category}
-						</span>
-					</div>
 					<button
 						onClick={handleShowTypeSelector}
 						disabled={isLoading}

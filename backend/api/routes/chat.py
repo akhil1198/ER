@@ -151,9 +151,8 @@ async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
                                 expense_entry_data = expense_service.map_expense_data_to_entry(expense_data_to_use, report_id)
                                 created_entry = await sap_service.create_expense_entry(expense_entry_data)
                                 expense_added = True
-                                
-                                expense_details = f"\n\n💰 **Expense Added:**\n• **Vendor**: {expense_entry_data.vendor_description}\n• **Amount**: ${expense_entry_data.transaction_amount:.2f} {expense_entry_data.transaction_currency_code}\n• **Date**: {expense_entry_data.transaction_date}\n• **Description**: {expense_entry_data.description}"
-                                
+
+
                             except Exception as e:
                                 expense_details = f"\n\n⚠️ **Note**: Report created successfully, but there was an issue adding the expense entry: {str(e)}\nYou can manually add the expense in SAP Concur."
                         
@@ -214,7 +213,7 @@ async def chat_endpoint(message: ChatMessage) -> Dict[str, Any]:
                             
                             return {
                                 "success": True,
-                                "message": f"✅ **Expense added successfully!**\n\n📊 **Report Details:**\n• **Report**: {selected_report['name']}\n• **Previous Total**: {selected_report['total']} {selected_report['currency']}\n• **New Expense**: ${expense_entry_data.get('TransactionAmount', 0):.2f}\n• **Status**: {selected_report['status']}\n\n💰 **Expense Details:**\n• **Vendor**: {expense_entry_data.get('VendorDescription', 'Unknown')}\n• **Amount**: ${expense_entry_data.get('TransactionAmount', 0):.2f} {expense_entry_data.get('TransactionCurrencyCode', 'USD')}\n• **Date**: {expense_entry_data.get('TransactionDate', 'Unknown')}\n• **Description**: {expense_entry_data.get('description', 'No description')}\n\n🎉 Your expense has been successfully added to the report!"
+                                "message": f"✅ **Expense added successfully!**\n\n📊 **Report Details:**\n• **Report**: {selected_report['name']}\n• **Previous Total**: {selected_report['total']} {selected_report['currency']}\n• **New Expense**: ${expense_entry_data.get('TransactionAmount', 0):.2f}\n• **Status**: {selected_report['status']}\n\n💰 **Expense Details:**\n• **Vendor**: {expense_entry_data.get('VendorDescription')}\n• **Amount**: ${expense_entry_data.get('TransactionAmount', 0):.2f} {expense_entry_data.get('TransactionCurrencyCode', 'USD')}\n• **Date**: {expense_entry_data.get('TransactionDate', 'Unknown')}\n• **Description**: {expense_entry_data.get('description', 'No description')}\n\n🎉 Your expense has been successfully added to the report!"
                             }
                             
                         except Exception as e:

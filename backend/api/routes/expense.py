@@ -97,7 +97,6 @@ async def process_receipt(file: UploadFile = File(...)):
             🔍 **AI Detection Results:**
             • **Category**: {extraction_result.get('category', 'Unknown')}
             • **Expense Type**: {extraction_result.get('expense_type', 'Unknown')}
-            • **Confidence**: High
 
             📝 **Extracted Data:**
             I've intelligently mapped your receipt data to the appropriate fields for **{extraction_result.get('expense_type', 'this expense type')}**.
@@ -112,7 +111,6 @@ async def process_receipt(file: UploadFile = File(...)):
                 "name": mapping_result.expense_type.name,
                 "description": getattr(mapping_result.expense_type, 'description', 'Detected expense'),
                 "category": getattr(mapping_result.expense_type, 'category', 'Other'),
-                "confidence": "high",
                 "form_config": form_config
             },
             "validation_errors": validation_errors,
@@ -265,7 +263,6 @@ async def _extract_expense_data(image_base64: str) -> Dict[str, Any]:
             logger.info("⚠️ Using basic extraction fallback")
             return {
                 "suggested_expense_type": extraction_data.get('suggested_expense_type', 'meals_employee_in_town'),
-                "confidence": extraction_data.get('confidence', 0.7),
                 "expense_data": extraction_data,
                 "classification_reasoning": "Basic extraction method"
             }
@@ -274,7 +271,6 @@ async def _extract_expense_data(image_base64: str) -> Dict[str, Any]:
         # Return error fallback
         return {
             "suggested_expense_type": "meals_employee_in_town",
-            "confidence": 0.5,
             "expense_data": {
                 "vendor": "Unknown Vendor",
                 "transaction_date": "2024-01-01",
@@ -327,7 +323,10 @@ async def _map_expense_data(suggested_type: str, expense_data: Dict[str, Any]) -
 def _update_chat_service(mapped_data: Dict[str, Any]) -> None:
     """Update chat service state with expense data"""
     try:
+        print("setting current expense data in chat service 111111111111111111111", mapped_data)
         enhanced_expense_data = ExpenseData(**mapped_data)
+        print("setting current expense data in chat service 222222222222222222222", enhanced_expense_data)
+
         chat_service.set_current_expense(enhanced_expense_data)
         chat_service.update_conversation_state("waiting_for_choice")
         logger.info("✅ Chat service updated")
@@ -360,7 +359,6 @@ def _format_process_receipt_response(extraction_result: Dict[str, Any], mapping_
             "id": suggested_type,
             "name": mapping_result.expense_type.name,
             "description": getattr(mapping_result.expense_type, 'description', 'Meal expense'),
-            "confidence": extraction_result['confidence'],
             "form_config": form_config
         },
         "validation_errors": validation_errors,

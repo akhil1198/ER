@@ -946,44 +946,58 @@ class EnhancedExpenseService:
         
         return "01028"
     
-    def map_expense_data_to_entry(self, extracted_data: Dict[str, Any], report_id: str) -> 'MappingResult':
+    def map_expense_data_to_entry(self, extracted_data, report_id: str) -> 'MappingResult':
         """Map enhanced expense data to SAP Concur expense entry format"""
         
-        # data coming in for mapping -
-            # expense_type='Rideshare (Uber, Lyft)' 
-            # transaction_date='2018-10-15' 
-            # business_purpose='Client meeting transportation' 
-            # vendor='Uber' 
-            # city=None 
-            # country='US' 
-            # payment_type='Personal Credit Card' 
-            # amount=25.68 
-            # currency='USD' 
-            # comment='Trip from San Francisco, CA US to San Francisco, CA US, Duration: 00:12:10, Distance: 1.44 mi'
+        # Handle both dictionary and object input
+        if isinstance(extracted_data, dict):
+            # Convert dictionary access to dict.get() calls
+            expense_type = extracted_data.get('expense_type')
+            transaction_date = extracted_data.get('transaction_date')
+            business_purpose = extracted_data.get('business_purpose')
+            vendor = extracted_data.get('vendor')
+            starting_city = extracted_data.get('starting_city')
+            country = extracted_data.get('country')
+            payment_type = extracted_data.get('payment_type')
+            amount = extracted_data.get('amount')
+            currency = extracted_data.get('currency')
+            comment = extracted_data.get('comment')
+            meal_type = extracted_data.get('meal_type')
+        else:
+            # Handle object attribute access
+            expense_type = getattr(extracted_data, 'expense_type', None)
+            transaction_date = getattr(extracted_data, 'transaction_date', None)
+            business_purpose = getattr(extracted_data, 'business_purpose', None)
+            vendor = getattr(extracted_data, 'vendor', None)
+            starting_city = getattr(extracted_data, 'starting_city', None)
+            country = getattr(extracted_data, 'country', None)
+            payment_type = getattr(extracted_data, 'payment_type', None)
+            amount = getattr(extracted_data, 'amount', None)
+            currency = getattr(extracted_data, 'currency', None)
+            comment = getattr(extracted_data, 'comment', None)
+            meal_type = getattr(extracted_data, 'meal_type', None)
 
         print("******************Mapping expense data to entry in enhanced_expense_service.py:", extracted_data)
-        print(f"Expense Type: {extracted_data.expense_type}")
-        print(f"Transaction Date: {extracted_data.transaction_date}")
-        print(f"Vendor: {extracted_data.vendor}")
-        print(f"Amount: {extracted_data.amount}")
-        print(f"Currency: {extracted_data.currency}")
-        print(f"Business Purpose: {extracted_data.business_purpose}")
-        print(f"Payment Type: {extracted_data.payment_type}")
-        print(f"City: {extracted_data.starting_city}")
-        print(f"Country: {extracted_data.country}")
-        print(f"Comment: {extracted_data.comment}")
+        print(f"Expense Type: {expense_type}")
+        print(f"Transaction Date: {transaction_date}")
+        print(f"Vendor: {vendor}")
+        print(f"Amount: {amount}")
+        print(f"Currency: {currency}")
+        print(f"Business Purpose: {business_purpose}")
+        print(f"Payment Type: {payment_type}")
+        print(f"City: {starting_city}")
+        print(f"Country: {country}")
+        print(f"Comment: {comment}")
         print(f"Report ID: {report_id}")
 
+        # Step 1 - Find the Expense Type Code
+        expense_type_code = self.find_expense_type_id(expense_type)
 
-        # step 1 - Find the Expense Type Code
-        # if the expense type is rideshare, we should get the code for rideshare under the Transportation category.
-        expense_type_code = self.find_expense_type_id(extracted_data.expense_type)
-
-        # get payment type id
-        payment_type_id = self.find_payment_type_id(extracted_data.payment_type)
-
+        # Get payment type id
+        payment_type_id = self.find_payment_type_id(payment_type)
 
         print(f"-----------------------------------------Expense Type Code: {expense_type_code}, Payment Type ID: {payment_type_id}")
+        
         class MappingResult:
             def __init__(self, mapped_data, expense_type_info, validation_errors):
                 self.mapped_data = mapped_data
@@ -997,22 +1011,21 @@ class EnhancedExpenseService:
                 self.category = category
         
         # Map the data based on expense type
-        if "rideshare" in extracted_data.expense_type.lower() or "uber" in extracted_data.expense_type.lower() or "lyft" in extracted_data.expense_type.lower():
-            print("Mapping to Rideshare (Uber, Lyft) expense type", )
+        if "rideshare" in expense_type.lower() or "uber" in expense_type.lower() or "lyft" in expense_type.lower():
+            print("Mapping to Rideshare (Uber, Lyft) expense type")
             mapped_data = {
                 "ReportID": report_id,
                 "ExpenseTypeCode": expense_type_code,                
-                "TransactionDate": extracted_data.transaction_date,
-                "description": extracted_data.business_purpose,
-                #"travel_type": extracted_data.travel_type,
-                "fromLocation": extracted_data.starting_city,
+                "TransactionDate": transaction_date,
+                "description": business_purpose,
+                "fromLocation": starting_city,
                 "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-                "TransactionAmount": extracted_data.amount,
-                "TransactionCurrencyCode": extracted_data.currency,
-                "VendorDescription": extracted_data.vendor,
+                "TransactionAmount": amount,
+                "TransactionCurrencyCode": currency,
+                "VendorDescription": vendor,
                 "custom9": "Client",
-                "comment": extracted_data.comment,
-                "expense_type": extracted_data.expense_type
+                "comment": comment,
+                "expense_type": expense_type
             }
             print("------------------------- Mapped Data for Rideshare (Uber, Lyft):", mapped_data)
             expense_type_info = ExpenseTypeInfo(
@@ -1021,23 +1034,19 @@ class EnhancedExpenseService:
                 category="Transportation"
             )
 
-        elif "meals with client" in extracted_data.expense_type.lower():
-
+        elif "meals with client" in expense_type.lower():
             mapped_data = {
                 "ReportID": report_id,
                 "ExpenseTypeCode": expense_type_code,
-                "TransactionDate": extracted_data.transaction_date,
-                "business_purpose": extracted_data.business_purpose,
-                "meal_type": extracted_data.meal_type,
-                "vendor": extracted_data.vendor,
-                "city": extracted_data.city,
-                "country": extracted_data.country,
-                "payment_type": extracted_data.payment_type,
-                "amount": extracted_data.amount,
-                "currency": extracted_data.currency,
-                "attendees_count": extracted_data.attendees_count,
-                "client_prospect_name": extracted_data.client_prospect_name,
-                "comment": extracted_data.comment
+                "TransactionDate": transaction_date,
+                "description": business_purpose,
+                "meal_type": meal_type,
+                "VendorDescription": vendor,
+                "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+                "TransactionAmount": amount,
+                "TransactionCurrencyCode": currency,
+                "comment": comment,
+                "expense_type": expense_type
             }
             expense_type_info = ExpenseTypeInfo(
                 name="Meals with Client(s) - In Town",
@@ -1045,24 +1054,20 @@ class EnhancedExpenseService:
                 category="Meals & Entertainment"
             )
 
-        elif "meals employee" in extracted_data.expense_type.lower():
-            print("hello here- -----------------")
+        elif "meals employee" in expense_type.lower():
+            print("Mapping to Meals Employee(s) Only - In Town")
             mapped_data = {
                 "ReportID": report_id,
                 "ExpenseTypeCode": expense_type_code,
-                "TransactionDate": extracted_data.transaction_date,
-                "description": extracted_data.business_purpose,
-                "meal_type": extracted_data.meal_type,
-                "VendorDescription": extracted_data.vendor,
-                # "city": extracted_data.city,
-                # "country": extracted_data.country,
+                "TransactionDate": transaction_date,
+                "description": business_purpose,
+                "meal_type": meal_type,
+                "VendorDescription": vendor,
                 "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
-                "TransactionAmount": extracted_data.amount,
-                "TransactionCurrencyCode": extracted_data.currency,
-                #"attendees_count": extracted_data.attendees_count,
-                #"custom9": extracted_data.client_prospect_name,
-                "comment": extracted_data.comment,
-                "expense_type": extracted_data.expense_type
+                "TransactionAmount": amount,
+                "TransactionCurrencyCode": currency,
+                "comment": comment,
+                "expense_type": expense_type
             }
             expense_type_info = ExpenseTypeInfo(
                 name="Meals Employee(s) Only - In Town",
@@ -1072,23 +1077,28 @@ class EnhancedExpenseService:
         
         else:
             # Default mapping
-            mapped_data = extracted_data
+            mapped_data = {
+                "ReportID": report_id,
+                "ExpenseTypeCode": expense_type_code,
+                "TransactionDate": transaction_date,
+                "description": business_purpose,
+                "VendorDescription": vendor,
+                "paymentTypeId": "gWuT0oX4FNnukaeUcpOO3WSub$p5tY",
+                "TransactionAmount": amount,
+                "TransactionCurrencyCode": currency,
+                "comment": comment,
+                "expense_type": expense_type
+            }
             expense_type_info = ExpenseTypeInfo(
-                name=extracted_data.expense_type,
+                name=expense_type,
                 description="Generic expense",
                 category="Other"
             )
         
         # Validate the mapped data
-        #validation_errors = self.validate_expense_data_dict(mapped_data, expense_type_info)
         validation_errors = {}
 
         return mapped_data
-
-
-
-
-
 
 
 

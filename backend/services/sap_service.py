@@ -217,7 +217,7 @@ class SAPService:
                     'ExpenseTypeCode': expense_data.get("ExpenseTypeCode"), 
                     'TransactionDate': expense_data.get("TransactionDate"), 
                     'description': expense_data.get("description"), 
-                    'fromLocation': expense_data.get("fromLocation"), 
+                    'FromLocation': "chicago", 
                     'paymentTypeId': "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", 
                     'TransactionAmount': expense_data.get("TransactionAmount"), 
                     'TransactionCurrencyCode': expense_data.get("TransactionCurrencyCode"), 
@@ -230,12 +230,11 @@ class SAPService:
                     'ReportID': expense_data.get("ReportID"), 
                     'ExpenseTypeCode': expense_data.get("ExpenseTypeCode"), 
                     'TransactionDate': expense_data.get("TransactionDate"), 
-                    'description': expense_data.get("description"), 
-                    'fromLocation': expense_data.get("from_location"), 
+                    'TransactionAmount': expense_data.get("TransactionAmount"), 
+                    'TransactionCurrencyCode': expense_data.get("TransactionCurrencyCode"), 
                     'paymentTypeId': "gWuT0oX4FNnukaeUcpOO3WSub$p5tY", 
-                    'TransactionAmount': expense_data.get("amount"), 
-                    'TransactionCurrencyCode': expense_data.get("currency"), 
-                    'VendorDescription': expense_data.get("vendor"), 
+                    'description': expense_data.get("description"), 
+                    'VendorDescription': expense_data.get("VendorDescription"), 
                     'comment': expense_data.get("comment"), 
                     'expense_type': expense_data.get("expense_type"),
                     'custom9': "ap" # custom9 is for client/prospect name
@@ -249,8 +248,7 @@ class SAPService:
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             print(f"Create Expense Response Status: {response.status_code}")
             print(f"Create Expense Response: {response.text}")
-            print("response ------------- ", response.json())
-
+            
             if response.status_code == 400:
                 try:
                     error_data = response.json()
@@ -260,8 +258,8 @@ class SAPService:
                 except (json.JSONDecodeError, KeyError):
                     raise HTTPException(status_code=400, detail=f"SAP Concur API error: {response.text}")
             
-            # response.raise_for_status()
-            return response
+            response.raise_for_status()
+            return response.json()
             
         except requests.exceptions.RequestException as e:
             print(f"SAP Create Legacy Expense Entry Error: {str(e)}")
